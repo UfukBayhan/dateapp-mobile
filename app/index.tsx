@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Intent from "./intent";
 
 const API_URL = "http://127.0.0.1:8080";
 
@@ -10,6 +11,12 @@ export default function Index() {
   const [birthDate, setBirthDate] = useState("");
   const [isLogin, setIsLogin] = useState(false);
   const [message, setMessage] = useState("");
+  const [loggedInEmail, setLoggedInEmail] = useState("");
+
+  // Giriş başarılıysa niyet ekranını göster
+  if (loggedInEmail) {
+    return <Intent email={loggedInEmail} />;
+  }
 
   const handleRegister = async () => {
     try {
@@ -19,6 +26,7 @@ export default function Index() {
         birth_date: birthDate,
       });
       setMessage(`Hoş geldin ${response.data.anonymous_name}! 🎉`);
+      setLoggedInEmail(email);
     } catch (error: any) {
       const msg = error?.response?.data?.detail;
       setMessage(typeof msg === "string" ? msg : "Bir hata oluştu");
@@ -32,6 +40,7 @@ export default function Index() {
         password,
       });
       setMessage("Giriş başarılı! 🎉");
+      setLoggedInEmail(email);
     } catch (error: any) {
       const msg = error?.response?.data?.detail;
       setMessage(typeof msg === "string" ? msg : "Bir hata oluştu");
