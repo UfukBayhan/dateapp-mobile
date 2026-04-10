@@ -13,14 +13,13 @@ const INTENTS = [
   { label: "📚 Ders Arkadaşı", value: "ders arkadaşı" },
 ];
 
-export default function Intent({ email }: { email: string }) {
+export default function Intent({ email, onLogout }: { email: string; onLogout: () => void }) {
   const [selected, setSelected] = useState("");
   const [searching, setSearching] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [anonymousName, setAnonymousName] = useState("");
   const [dots, setDots] = useState(".");
 
-  // Animasyon için nokta efekti
   useEffect(() => {
     if (!searching) return;
     const interval = setInterval(() => {
@@ -33,7 +32,6 @@ export default function Intent({ email }: { email: string }) {
     return <Chat email={email} anonymousName={anonymousName} roomId={roomId} />;
   }
 
-  // Eşleşme bekleme ekranı
   if (searching) {
     return (
       <View style={styles.container}>
@@ -73,7 +71,6 @@ export default function Intent({ email }: { email: string }) {
         setRoomId(data.current_room_id);
         setSearching(false);
       } else {
-        // 3 saniyede bir kontrol et
         const interval = setInterval(async () => {
           try {
             const res = await axios.post(`${API_URL}/matching/find-match`, null, {
@@ -98,7 +95,12 @@ export default function Intent({ email }: { email: string }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🔍 Arayışın Ne?</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>🔍 Arayışın Ne?</Text>
+        <TouchableOpacity onPress={onLogout}>
+          <Text style={styles.logoutText}>Çıkış</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.subtitle}>Seni en iyi tanımlayan seçeneği seç</Text>
 
       {INTENTS.map((item) => (
@@ -132,11 +134,21 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: "#f5f5f5",
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 8,
+  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 8,
     color: "#333",
+  },
+  logoutText: {
+    color: "#6C63FF",
+    fontSize: 14,
   },
   subtitle: {
     fontSize: 16,

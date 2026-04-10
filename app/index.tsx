@@ -1,6 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Intent from "./intent";
 
 const API_URL = "https://dateapp-backend.onrender.com";
@@ -9,41 +10,77 @@ export default function Index() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [isLogin, setIsLogin] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
   const [message, setMessage] = useState("");
   const [loggedInEmail, setLoggedInEmail] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Giriş başarılıysa niyet ekranını göster
+  // Uygulama açılınca kayıtlı oturumu kontrol et
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const savedEmail = await AsyncStorage.getItem("userEmail");
+        if (savedEmail) {
+          setLoggedInEmail(savedEmail);
+        }
+      } catch (e) {
+        console.log("Oturum kontrolü başarısız");
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkSession();
+  }, []);
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem("userEmail");
+    setLoggedInEmail("");
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#6C63FF" />
+      </View>
+    );
+  }
+
   if (loggedInEmail) {
-    return <Intent email={loggedInEmail} />;
+    return <Intent email={loggedInEmail} onLogout={handleLogout} />;
   }
 
   const handleRegister = async () => {
+    setLoading(true);
     try {
       const response = await axios.post(`${API_URL}/auth/register`, {
         email,
         password,
         birth_date: birthDate,
       });
-      setMessage(`Hoş geldin ${response.data.anonymous_name}! 🎉`);
+      await AsyncStorage.setItem("userEmail", email);
       setLoggedInEmail(email);
     } catch (error: any) {
       const msg = error?.response?.data?.detail;
       setMessage(typeof msg === "string" ? msg : "Bir hata oluştu");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleLogin = async () => {
+    setLoading(true);
     try {
       await axios.post(`${API_URL}/auth/login`, {
         email,
         password,
       });
-      setMessage("Giriş başarılı! 🎉");
+      await AsyncStorage.setItem("userEmail", email);
       setLoggedInEmail(email);
     } catch (error: any) {
       const msg = error?.response?.data?.detail;
       setMessage(typeof msg === "string" ? msg : "Bir hata oluştu");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,10 +122,15 @@ export default function Index() {
       <TouchableOpacity
         style={styles.button}
         onPress={isLogin ? handleLogin : handleRegister}
+        disabled={loading}
       >
-        <Text style={styles.buttonText}>
-          {isLogin ? "Giriş Yap" : "Kayıt Ol"}
-        </Text>
+        {loading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.buttonText}>
+            {isLogin ? "Giriş Yap" : "Kayıt Ol"}
+          </Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
@@ -120,11 +162,11 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   message: {
-    backgroundColor: "#e8f5e9",
+    backgroundColor: "#ffebee",
     padding: 10,
     borderRadius: 8,
     marginBottom: 15,
-    color: "#2e7d32",
+    color: "#c62828",
     fontSize: 14,
     width: "100%",
     textAlign: "center",
