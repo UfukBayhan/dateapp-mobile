@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Chat from "./chat";
 
 const API_URL = "http://127.0.0.1:8080";
 
@@ -15,16 +16,56 @@ const INTENTS = [
 export default function Intent({ email }: { email: string }) {
   const [selected, setSelected] = useState("");
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [roomId, setRoomId] = useState("");
+  const [anonymousName, setAnonymousName] = useState("");
+
+  // Eşleşme bulunduysa chat ekranına geç
+  if (roomId) {
+    return <Chat email={email} anonymousName={anonymousName} roomId={roomId} />;
+  }
 
   const handleSelect = async (intent: string) => {
     setSelected(intent);
+    setLoading(true);
+    setMessage("");
+
     try {
+      // Önce niyeti kaydet
       await axios.put(`${API_URL}/auth/update-intent`, null, {
         params: { email, intent },
       });
-      setMessage("Arayışın kaydedildi! Eşleşme aranıyor... 🔍");
+
+      // Sonra eşleşme ara
+      const matchRes = await axios.post(`${API_URL}/matching/find-match`, null, {
+        params: { email },
+      });
+
+      const data = matchRes.data;
+      setAnonymousName(data.anonymous_name);
+
+      if (data.current_room_id) {
+        // Eşleşme bulundu!
+        setRoomId(data.current_room_id);
+      } else {
+        // Bekleme modunda
+        setMessage("Eşleşme bekleniyor... 🔍");
+        
+        // 3 saniyede bir kontrol et
+        const interval = setInterval(async () => {
+          const res = await axios.post(`${API_URL}/matching/find-match`, null, {
+            params: { email },
+          });
+          if (res.data.current_room_id) {
+            clearInterval(interval);
+            setRoomId(res.data.current_room_id);
+          }
+        }, 3000);
+      }
     } catch (error: any) {
       setMessage("Bir hata oluştu");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,6 +78,8 @@ export default function Intent({ email }: { email: string }) {
         <Text style={styles.message}>{message}</Text>
       ) : null}
 
+      {loading && <ActivityIndicator size="large" color="#6C63FF" style={{ marginBottom: 20 }} />}
+
       {INTENTS.map((item) => (
         <TouchableOpacity
           key={item.value}
@@ -45,6 +88,7 @@ export default function Intent({ email }: { email: string }) {
             selected === item.value && styles.intentButtonSelected,
           ]}
           onPress={() => handleSelect(item.value)}
+          disabled={loading}
         >
           <Text
             style={[
