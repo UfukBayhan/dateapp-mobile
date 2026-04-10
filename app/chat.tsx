@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { io, Socket } from "socket.io-client";
 
-const API_URL = "http://127.0.0.1:8080";
+const API_URL = "https://dateapp-backend.onrender.com";
 
 type Message = {
   user: string;

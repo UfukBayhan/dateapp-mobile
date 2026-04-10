@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Chat from "./chat";
 
-const API_URL = "http://127.0.0.1:8080";
+const API_URL = "https://dateapp-backend.onrender.com";
 
 const INTENTS = [
   { label: "☕ Kahve Buddy", value: "kahve-buddy" },

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Intent from "./intent";
 
-const API_URL = "http://127.0.0.1:8080";
+const API_URL = "https://dateapp-backend.onrender.com";
 
 export default function Index() {
   const [email, setEmail] = useState("");
