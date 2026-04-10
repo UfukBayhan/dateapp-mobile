@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Chat from "./chat";
 
@@ -15,28 +15,53 @@ const INTENTS = [
 
 export default function Intent({ email }: { email: string }) {
   const [selected, setSelected] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [anonymousName, setAnonymousName] = useState("");
+  const [dots, setDots] = useState(".");
 
-  // Eşleşme bulunduysa chat ekranına geç
+  // Animasyon için nokta efekti
+  useEffect(() => {
+    if (!searching) return;
+    const interval = setInterval(() => {
+      setDots(prev => prev.length >= 3 ? "." : prev + ".");
+    }, 500);
+    return () => clearInterval(interval);
+  }, [searching]);
+
   if (roomId) {
     return <Chat email={email} anonymousName={anonymousName} roomId={roomId} />;
   }
 
+  // Eşleşme bekleme ekranı
+  if (searching) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.searchingEmoji}>🔍</Text>
+        <Text style={styles.searchingTitle}>Eşleşme Aranıyor{dots}</Text>
+        <Text style={styles.searchingSubtitle}>
+          Seninle aynı arayışta biri bekleniyor
+        </Text>
+        <ActivityIndicator size="large" color="#6C63FF" style={{ marginTop: 30 }} />
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => setSearching(false)}
+        >
+          <Text style={styles.cancelText}>İptal Et</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const handleSelect = async (intent: string) => {
     setSelected(intent);
-    setLoading(true);
-    setMessage("");
+    setSearching(true);
 
     try {
-      // Önce niyeti kaydet
       await axios.put(`${API_URL}/auth/update-intent`, null, {
         params: { email, intent },
       });
 
-      // Sonra eşleşme ara
       const matchRes = await axios.post(`${API_URL}/matching/find-match`, null, {
         params: { email },
       });
@@ -45,27 +70,29 @@ export default function Intent({ email }: { email: string }) {
       setAnonymousName(data.anonymous_name);
 
       if (data.current_room_id) {
-        // Eşleşme bulundu!
         setRoomId(data.current_room_id);
+        setSearching(false);
       } else {
-        // Bekleme modunda
-        setMessage("Eşleşme bekleniyor... 🔍");
-        
         // 3 saniyede bir kontrol et
         const interval = setInterval(async () => {
-          const res = await axios.post(`${API_URL}/matching/find-match`, null, {
-            params: { email },
-          });
-          if (res.data.current_room_id) {
+          try {
+            const res = await axios.post(`${API_URL}/matching/find-match`, null, {
+              params: { email },
+            });
+            if (res.data.current_room_id) {
+              clearInterval(interval);
+              setAnonymousName(res.data.anonymous_name);
+              setRoomId(res.data.current_room_id);
+              setSearching(false);
+            }
+          } catch (e) {
             clearInterval(interval);
-            setRoomId(res.data.current_room_id);
+            setSearching(false);
           }
         }, 3000);
       }
     } catch (error: any) {
-      setMessage("Bir hata oluştu");
-    } finally {
-      setLoading(false);
+      setSearching(false);
     }
   };
 
@@ -73,12 +100,6 @@ export default function Intent({ email }: { email: string }) {
     <View style={styles.container}>
       <Text style={styles.title}>🔍 Arayışın Ne?</Text>
       <Text style={styles.subtitle}>Seni en iyi tanımlayan seçeneği seç</Text>
-
-      {message ? (
-        <Text style={styles.message}>{message}</Text>
-      ) : null}
-
-      {loading && <ActivityIndicator size="large" color="#6C63FF" style={{ marginBottom: 20 }} />}
 
       {INTENTS.map((item) => (
         <TouchableOpacity
@@ -88,7 +109,6 @@ export default function Intent({ email }: { email: string }) {
             selected === item.value && styles.intentButtonSelected,
           ]}
           onPress={() => handleSelect(item.value)}
-          disabled={loading}
         >
           <Text
             style={[
@@ -124,15 +144,32 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
   },
-  message: {
-    backgroundColor: "#e8f5e9",
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 15,
-    color: "#2e7d32",
-    fontSize: 14,
-    width: "100%",
+  searchingEmoji: {
+    fontSize: 60,
+    marginBottom: 20,
+  },
+  searchingTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 10,
+  },
+  searchingSubtitle: {
+    fontSize: 15,
+    color: "#666",
     textAlign: "center",
+    marginBottom: 10,
+  },
+  cancelButton: {
+    marginTop: 40,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  cancelText: {
+    color: "#666",
+    fontSize: 15,
   },
   intentButton: {
     width: "100%",
