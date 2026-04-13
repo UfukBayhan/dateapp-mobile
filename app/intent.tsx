@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Chat from "./chat";
 
@@ -13,7 +13,7 @@ const INTENTS = [
   { label: "📚 Ders Arkadaşı", value: "ders arkadaşı" },
 ];
 
-export default function Intent({ email, onLogout }: { email: string; onLogout: () => void }) {
+export default function Intent({ phone, onLogout }: { phone: string; onLogout: () => void }) {
   const [selected, setSelected] = useState("");
   const [searching, setSearching] = useState(false);
   const [roomId, setRoomId] = useState("");
@@ -29,7 +29,7 @@ export default function Intent({ email, onLogout }: { email: string; onLogout: (
   }, [searching]);
 
   if (roomId) {
-    return <Chat email={email} anonymousName={anonymousName} roomId={roomId} />;
+    return <Chat phone={phone} anonymousName={anonymousName} roomId={roomId} />;
   }
 
   if (searching) {
@@ -57,11 +57,11 @@ export default function Intent({ email, onLogout }: { email: string; onLogout: (
 
     try {
       await axios.put(`${API_URL}/auth/update-intent`, null, {
-        params: { email, intent },
+        params: { phone, intent },
       });
 
       const matchRes = await axios.post(`${API_URL}/matching/find-match`, null, {
-        params: { email },
+        params: { phone },
       });
 
       const data = matchRes.data;
@@ -74,7 +74,7 @@ export default function Intent({ email, onLogout }: { email: string; onLogout: (
         const interval = setInterval(async () => {
           try {
             const res = await axios.post(`${API_URL}/matching/find-match`, null, {
-              params: { email },
+              params: { phone },
             });
             if (res.data.current_room_id) {
               clearInterval(interval);
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#0d0d0d",
   },
   header: {
     flexDirection: "row",
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#333",
+    color: "white",
   },
   logoutText: {
     color: "#6C63FF",
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     marginBottom: 30,
-    color: "#666",
+    color: "#aaa",
     textAlign: "center",
   },
   searchingEmoji: {
@@ -163,12 +163,12 @@ const styles = StyleSheet.create({
   searchingTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#333",
+    color: "white",
     marginBottom: 10,
   },
   searchingSubtitle: {
     fontSize: 15,
-    color: "#666",
+    color: "#aaa",
     textAlign: "center",
     marginBottom: 10,
   },
@@ -177,29 +177,29 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#333",
   },
   cancelText: {
-    color: "#666",
+    color: "#aaa",
     fontSize: 15,
   },
   intentButton: {
     width: "100%",
-    backgroundColor: "white",
+    backgroundColor: "#1a1a1a",
     padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: "#ddd",
+    borderColor: "#333",
     alignItems: "center",
   },
   intentButtonSelected: {
     borderColor: "#6C63FF",
-    backgroundColor: "#f0effe",
+    backgroundColor: "#1a1a2e",
   },
   intentText: {
     fontSize: 16,
-    color: "#333",
+    color: "#aaa",
     fontWeight: "500",
   },
   intentTextSelected: {

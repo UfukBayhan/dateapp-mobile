@@ -1,27 +1,32 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Intent from "./intent";
+import Phone from "./phone";
 
 const API_URL = "https://dateapp-backend.onrender.com";
 
 export default function Index() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [isLogin, setIsLogin] = useState(true);
+  const [isNewUser, setIsNewUser] = useState(false);
   const [message, setMessage] = useState("");
-  const [loggedInEmail, setLoggedInEmail] = useState("");
   const [loading, setLoading] = useState(true);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [verifiedPhone, setVerifiedPhone] = useState("");
+  const [token, setToken] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
 
-  // Uygulama açılınca kayıtlı oturumu kontrol et
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const savedEmail = await AsyncStorage.getItem("userEmail");
-        if (savedEmail) {
-          setLoggedInEmail(savedEmail);
+        const savedToken = await AsyncStorage.getItem("token");
+        const savedPhone = await AsyncStorage.getItem("phoneVerified");
+        if (savedToken && savedPhone) {
+          setToken(savedToken);
+          setVerifiedPhone(savedPhone);
+          setPhoneVerified(true);
+          setLoggedIn(true);
         }
       } catch (e) {
         console.log("Oturum kontrolü başarısız");
@@ -33,8 +38,54 @@ export default function Index() {
   }, []);
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("userEmail");
-    setLoggedInEmail("");
+    await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("phoneVerified");
+    setToken("");
+    setLoggedIn(false);
+    setPhoneVerified(false);
+    setVerifiedPhone("");
+  };
+
+  const handlePhoneVerified = async (phone: string) => {
+    setVerifiedPhone(phone);
+    setPhoneVerified(true);
+
+    try {
+      const res = await axios.post(`${API_URL}/auth/login`, { phone: phone });
+      await AsyncStorage.setItem("token", res.data.access_token);
+      await AsyncStorage.setItem("phoneVerified", phone);
+      setToken(res.data.access_token);
+      setLoggedIn(true);
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        setIsNewUser(true);
+      } else {
+        setMessage("Bir hata oluştu, tekrar dene");
+      }
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!birthDate) {
+      setMessage("Doğum tarihi gir");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/auth/register`, {
+        phone: verifiedPhone,
+        birth_date: birthDate,
+      });
+      await AsyncStorage.setItem("token", res.data.access_token);
+      await AsyncStorage.setItem("phoneVerified", verifiedPhone);
+      setToken(res.data.access_token);
+      setLoggedIn(true);
+    } catch (error: any) {
+      const msg = error?.response?.data?.detail;
+      setMessage(typeof msg === "string" ? msg : "Bir hata oluştu");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -45,99 +96,51 @@ export default function Index() {
     );
   }
 
-  if (loggedInEmail) {
-    return <Intent email={loggedInEmail} onLogout={handleLogout} />;
+  // Token varsa direkt intent ekranına
+  if (loggedIn) {
+    return <Intent phone={verifiedPhone} onLogout={handleLogout} />;
   }
 
-  const handleRegister = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.post(`${API_URL}/auth/register`, {
-        email,
-        password,
-        birth_date: birthDate,
-      });
-      await AsyncStorage.setItem("userEmail", email);
-      setLoggedInEmail(email);
-    } catch (error: any) {
-      const msg = error?.response?.data?.detail;
-      setMessage(typeof msg === "string" ? msg : "Bir hata oluştu");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Telefon doğrulama
+  if (!phoneVerified) {
+    return <Phone onVerified={handlePhoneVerified} />;
+  }
 
-  const handleLogin = async () => {
-    setLoading(true);
-    try {
-      await axios.post(`${API_URL}/auth/login`, {
-        email,
-        password,
-      });
-      await AsyncStorage.setItem("userEmail", email);
-      setLoggedInEmail(email);
-    } catch (error: any) {
-      const msg = error?.response?.data?.detail;
-      setMessage(typeof msg === "string" ? msg : "Bir hata oluştu");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Yeni kullanıcı → doğum tarihi al
+  if (isNewUser) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>🎂 Son Bir Adım</Text>
+        <Text style={styles.subtitle}>Doğum tarihini gir</Text>
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>💫 DateApp</Text>
-      <Text style={styles.subtitle}>{isLogin ? "Giriş Yap" : "Kayıt Ol"}</Text>
+        {message ? <Text style={styles.message}>{message}</Text> : null}
 
-      {message ? (
-        <Text style={styles.message}>{message}</Text>
-      ) : null}
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Şifre"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      {!isLogin && (
         <TextInput
           style={styles.input}
-          placeholder="Doğum Tarihi (1995-01-01)"
+          placeholder="1995-01-01"
+          placeholderTextColor="#666"
           value={birthDate}
           onChangeText={setBirthDate}
         />
-      )}
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={isLogin ? handleLogin : handleRegister}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.buttonText}>
-            {isLogin ? "Giriş Yap" : "Kayıt Ol"}
-          </Text>
-        )}
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleRegister}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.buttonText}>Devam Et</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
-      <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
-        <Text style={styles.switchText}>
-          {isLogin ? "Hesabın yok mu? Kayıt ol" : "Hesabın var mı? Giriş yap"}
-        </Text>
-      </TouchableOpacity>
+  return (
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color="#6C63FF" />
     </View>
   );
 }
@@ -148,44 +151,46 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#0d0d0d",
   },
   title: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: "bold",
     marginBottom: 8,
-    color: "#333",
+    color: "white",
   },
   subtitle: {
-    fontSize: 20,
+    fontSize: 16,
     marginBottom: 30,
-    color: "#666",
+    color: "#aaa",
+    textAlign: "center",
   },
   message: {
-    backgroundColor: "#ffebee",
+    backgroundColor: "#2a0000",
     padding: 10,
     borderRadius: 8,
     marginBottom: 15,
-    color: "#c62828",
+    color: "#ff4444",
     fontSize: 14,
     width: "100%",
     textAlign: "center",
   },
   input: {
     width: "100%",
-    backgroundColor: "white",
+    backgroundColor: "#1a1a1a",
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 12,
     marginBottom: 12,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#333",
+    color: "white",
   },
   button: {
     width: "100%",
     backgroundColor: "#6C63FF",
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
     marginBottom: 12,
   },
@@ -193,9 +198,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
-  },
-  switchText: {
-    color: "#6C63FF",
-    fontSize: 14,
   },
 });

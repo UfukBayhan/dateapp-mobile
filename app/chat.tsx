@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { io, Socket } from "socket.io-client";
 
@@ -9,8 +9,8 @@ type Message = {
   text: string;
 };
 
-export default function Chat({ email, anonymousName, roomId }: { 
-  email: string; 
+export default function Chat({ phone, anonymousName, roomId }: {
+  phone: string
   anonymousName: string;
   roomId: string;
 }) {
@@ -44,17 +44,17 @@ export default function Chat({ email, anonymousName, roomId }: {
     socket.on("go_private", (data: { private_room_id: string }) => {
       setShowPopup(false);
       setIsPrivate(true);
-      setMessages(prev => [...prev, { 
-        user: "🔒 Sistem", 
-        text: "Özel odaya geçildi!" 
+      setMessages(prev => [...prev, {
+        user: "🔒 Sistem",
+        text: "Özel odaya geçildi!"
       }]);
     });
 
     socket.on("match_cancelled", () => {
       setShowPopup(false);
-      setMessages(prev => [...prev, { 
-        user: "❌ Sistem", 
-        text: "Eşleşme sona erdi." 
+      setMessages(prev => [...prev, {
+        user: "❌ Sistem",
+        text: "Eşleşme sona erdi."
       }]);
     });
 
@@ -90,7 +90,7 @@ export default function Chat({ email, anonymousName, roomId }: {
         <Text style={styles.headerSub}>{anonymousName}</Text>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.messages}
         ref={scrollRef}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd()}
