@@ -17,19 +17,27 @@ export default function Intent({ phone, onLogout }: { phone: string; onLogout: (
   const [selected, setSelected] = useState("");
   const [searching, setSearching] = useState(false);
   const [roomId, setRoomId] = useState("");
-  const [anonymousName, setAnonymousName] = useState("");
   const [dots, setDots] = useState(".");
 
+  // Nokta animasyonu → "Aranıyor." "Aranıyor.." "Aranıyor..."
   useEffect(() => {
     if (!searching) return;
     const interval = setInterval(() => {
       setDots(prev => prev.length >= 3 ? "." : prev + ".");
     }, 500);
+    // cleanup → searching bitince interval'ı durdur
     return () => clearInterval(interval);
   }, [searching]);
 
+  // roomId dolunca Chat ekranına geç
+  // Chat artık kendi anonim ismini backend'den çekiyor
   if (roomId) {
-    return <Chat phone={phone} anonymousName={anonymousName} roomId={roomId} />;
+    return (
+      <Chat
+        phone={phone}
+        roomId={roomId}
+      />
+    );
   }
 
   if (searching) {
@@ -56,21 +64,23 @@ export default function Intent({ phone, onLogout }: { phone: string; onLogout: (
     setSearching(true);
 
     try {
+      // Intent güncelle
       await axios.put(`${API_URL}/auth/update-intent`, null, {
         params: { phone, intent },
       });
 
+      // Eşleşme ara
       const matchRes = await axios.post(`${API_URL}/matching/find-match`, null, {
         params: { phone },
       });
 
-      const data = matchRes.data;
-      setAnonymousName(data.anonymous_name);
-
-      if (data.current_room_id) {
-        setRoomId(data.current_room_id);
+      if (matchRes.data.current_room_id) {
+        // Hemen eşleşme bulundu!
+        setRoomId(matchRes.data.current_room_id);
         setSearching(false);
       } else {
+        // Eşleşme yok → 3 saniyede bir kontrol et (polling)
+        // Polling → belirli aralıklarla sunucuya "eşleşme var mı?" diye sormak
         const interval = setInterval(async () => {
           try {
             const res = await axios.post(`${API_URL}/matching/find-match`, null, {
@@ -78,7 +88,6 @@ export default function Intent({ phone, onLogout }: { phone: string; onLogout: (
             });
             if (res.data.current_room_id) {
               clearInterval(interval);
-              setAnonymousName(res.data.anonymous_name);
               setRoomId(res.data.current_room_id);
               setSearching(false);
             }
