@@ -1,9 +1,9 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  ScrollView, StyleSheet, Text, TextInput,
-  TouchableOpacity, View
+  ActivityIndicator, ScrollView, StyleSheet,
+  Text, TextInput, TouchableOpacity, View
 } from "react-native";
 import { io, Socket } from "socket.io-client";
 
@@ -12,61 +12,67 @@ const API_URL = "https://dateapp-backend.onrender.com";
 type Message = {
   user: string;
   text: string;
-  isSystem?: boolean; // Sistem mesajı mı?
+  isSystem?: boolean;
+  isMine?: boolean; // Kendi mesajım mı?
 };
 
 export default function Chat({
   phone,
   roomId,
-  onLeave,
 }: {
   phone: string;
   roomId: string;
-  onLeave?: () => void;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [showPopup, setShowPopup] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [privateRoomId, setPrivateRoomId] = useState("");
+  // anonymousName → public odada kullanılan anonim isim
   const [anonymousName, setAnonymousName] = useState("");
+  // nickname → özel odada açılan gerçek isim
+  const [nickname, setNickname] = useState("");
   const [loading, setLoading] = useState(true);
   const socketRef = useRef<Socket | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
+  // Şu an aktif olan ismim → public'te anonim, private'ta nickname
+  const myCurrentName = isPrivate ? nickname : anonymousName;
+
   useEffect(() => {
-    // Önce odaya özel anonim ismimizi backend'den çek
-    const fetchAnonName = async () => {
+    const init = async () => {
       try {
+        // 1. AsyncStorage'dan nickname'i al
+        const savedNickname = await AsyncStorage.getItem("nickname");
+        if (savedNickname) setNickname(savedNickname);
+
+        // 2. Backend'den odaya özel anonim ismimi al
         const res = await axios.get(`${API_URL}/matching/my-anonymous-name`, {
           params: { phone, room_id: roomId }
         });
         const anonName = res.data.anonymous_name;
         setAnonymousName(anonName);
 
-        // Anonim ismi aldıktan sonra socket bağlantısını kur
-        connectSocket(anonName);
+        // 3. Socket bağlantısını kur
+        connectSocket(anonName, savedNickname || "");
       } catch (e) {
-        console.log("Anonim isim alınamadı", e);
-        connectSocket("Anonim");
+        console.log("Init hatası:", e);
+        connectSocket("Anonim", "");
       }
     };
 
-    fetchAnonName();
+    init();
 
-    // Cleanup → ekrandan çıkınca socket bağlantısını kapat
     return () => {
       socketRef.current?.disconnect();
     };
   }, [roomId]);
 
-  const connectSocket = (anonName: string) => {
+  const connectSocket = (anonName: string, nick: string) => {
     const socket = io(API_URL, { transports: ["websocket"] });
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      // Odaya katılırken anonim ismimizi de gönderiyoruz
-      // Backend bunu sid_to_anon dictionary'sine kaydedecek
       socket.emit("join_room", {
         room_id: roomId,
         anonymous_name: anonName,
@@ -78,15 +84,18 @@ export default function Chat({
       setMessages(prev => [...prev, {
         user: "Sistem",
         text: data.text,
-        isSystem: true
+        isSystem: true,
       }]);
     });
 
     socket.on("receive_message", (data: { user: string; text: string }) => {
+      // Gelen mesaj benim mi? user alanı anonim ismimle eşleşiyor mu?
+      const isMine = data.user === anonName;
       setMessages(prev => [...prev, {
         user: data.user,
         text: data.text,
-        isSystem: false
+        isSystem: false,
+        isMine,
       }]);
     });
 
@@ -98,32 +107,32 @@ export default function Chat({
       setShowPopup(false);
       setIsPrivate(true);
       setPrivateRoomId(data.private_room_id);
-      // Özel odaya geçince room_id güncelle
+
+      // Özel odaya katıl, bu sefer nickname ile
       socket.emit("join_room", {
         room_id: data.private_room_id,
-        anonymous_name: anonName,
+        anonymous_name: nick || anonName,
       });
+
       setMessages(prev => [...prev, {
-        user: "🔒 Sistem",
-        text: "Özel odaya geçildi! Artık nickname'leriniz görünecek.",
-        isSystem: true
+        user: "Sistem",
+        text: `🔒 Özel odaya geçildi! Artık gerçek isimleriniz görünüyor.`,
+        isSystem: true,
       }]);
     });
 
     socket.on("match_cancelled", () => {
       setShowPopup(false);
       setMessages(prev => [...prev, {
-        user: "❌ Sistem",
-        text: "Eşleşme sona erdi.",
-        isSystem: true
+        user: "Sistem",
+        text: "❌ Eşleşme sona erdi.",
+        isSystem: true,
       }]);
     });
   };
 
   const sendMessage = () => {
     if (!inputText.trim()) return;
-    // Mesajı gönderirken room_id yeterli
-    // Backend sid_to_anon'dan anonim ismi kendisi buluyor
     const currentRoomId = isPrivate ? privateRoomId : roomId;
     socketRef.current?.emit("send_message", {
       room_id: currentRoomId,
@@ -156,9 +165,9 @@ export default function Chat({
         <Text style={styles.headerText}>
           {isPrivate ? "🔒 Özel Oda" : "👥 Public Oda"}
         </Text>
-        {/* Anonim ismimizi göster */}
         <Text style={styles.headerSub}>
-          Sen: {anonymousName}
+          {/* Public'te anonim isim, private'ta nickname göster */}
+          Sen: {isPrivate ? nickname : anonymousName}
         </Text>
       </View>
 
@@ -172,30 +181,40 @@ export default function Chat({
           <View
             key={index}
             style={[
-              styles.messageBubble,
-              // Kendi mesajlarımız sağda, diğerleri solda
+              styles.bubbleWrapper,
+              // Wrapper hizalaması → kendi mesajım sağda, diğeri solda
               msg.isSystem
-                ? styles.systemMessage
-                : msg.user === anonymousName
-                  ? styles.myMessage
-                  : styles.otherMessage,
+                ? styles.wrapperCenter
+                : msg.isMine
+                  ? styles.wrapperRight
+                  : styles.wrapperLeft,
             ]}
           >
-            {/* Sistem mesajlarında kullanıcı adı gösterme */}
-            {!msg.isSystem && (
+            {/* Karşı tarafın ismini göster (kendi mesajımda gösterme) */}
+            {!msg.isSystem && !msg.isMine && (
               <Text style={styles.messageUser}>{msg.user}</Text>
             )}
-            <Text style={[
-              styles.messageText,
-              msg.isSystem && styles.systemText
+
+            <View style={[
+              styles.messageBubble,
+              msg.isSystem
+                ? styles.systemBubble
+                : msg.isMine
+                  ? styles.myBubble
+                  : styles.otherBubble,
             ]}>
-              {msg.text}
-            </Text>
+              <Text style={[
+                styles.messageText,
+                msg.isSystem && styles.systemText,
+              ]}>
+                {msg.text}
+              </Text>
+            </View>
           </View>
         ))}
       </ScrollView>
 
-      {/* Özel odaya geçiş popup'ı */}
+      {/* Özel oda popup */}
       {showPopup && (
         <View style={styles.popup}>
           <Text style={styles.popupTitle}>⏰ Süre Doldu!</Text>
@@ -227,7 +246,6 @@ export default function Chat({
           placeholderTextColor="#666"
           value={inputText}
           onChangeText={setInputText}
-          // onSubmitEditing → Enter'a basınca mesaj gönder
           onSubmitEditing={sendMessage}
         />
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
@@ -246,11 +264,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#0d0d0d",
   },
-  loadingText: {
-    color: "#aaa",
-    marginTop: 10,
-    fontSize: 14,
-  },
+  loadingText: { color: "#aaa", marginTop: 10, fontSize: 14 },
   header: {
     backgroundColor: "#6C63FF",
     padding: 20,
@@ -260,28 +274,53 @@ const styles = StyleSheet.create({
   headerText: { color: "white", fontSize: 18, fontWeight: "bold" },
   headerSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 4 },
   messages: { flex: 1, padding: 15 },
-  messageBubble: {
-    maxWidth: "80%",
-    padding: 12,
-    borderRadius: 12,
+
+  // Wrapper → mesaj balonunun hangi tarafa yaslanacağını belirler
+  bubbleWrapper: {
     marginBottom: 10,
+    maxWidth: "80%",
   },
-  myMessage: {
-    backgroundColor: "#6C63FF",
+  wrapperRight: {
+    // alignSelf → sadece bu elementi sağa yasla
     alignSelf: "flex-end",
+    alignItems: "flex-end",
   },
-  otherMessage: {
-    backgroundColor: "#1a1a1a",
+  wrapperLeft: {
     alignSelf: "flex-start",
+    alignItems: "flex-start",
   },
-  systemMessage: {
-    backgroundColor: "transparent",
+  wrapperCenter: {
     alignSelf: "center",
-    padding: 6,
+    alignItems: "center",
   },
-  messageUser: { fontSize: 11, color: "#aaa", marginBottom: 3 },
+
+  messageBubble: {
+    padding: 12,
+    borderRadius: 16,
+  },
+  myBubble: {
+    backgroundColor: "#6C63FF",
+    // Sağ alt köşe düz → WhatsApp tarzı
+    borderBottomRightRadius: 4,
+  },
+  otherBubble: {
+    backgroundColor: "#1a1a1a",
+    // Sol alt köşe düz
+    borderBottomLeftRadius: 4,
+  },
+  systemBubble: {
+    backgroundColor: "transparent",
+    padding: 4,
+  },
+  messageUser: {
+    fontSize: 11,
+    color: "#6C63FF",
+    marginBottom: 3,
+    marginLeft: 4,
+  },
   messageText: { fontSize: 15, color: "white" },
-  systemText: { fontSize: 12, color: "#666", textAlign: "center" },
+  systemText: { fontSize: 12, color: "#555", textAlign: "center" },
+
   popup: {
     backgroundColor: "#1a1a1a",
     margin: 15,

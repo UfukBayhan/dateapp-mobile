@@ -29,7 +29,7 @@ export default function Onboarding({
 }: {
     phone: string;
     age: number;
-    onComplete: () => void;
+    onComplete: (nickname: string) => void;
 }) {
     const [step, setStep] = useState(0);
     const [nickname, setNickname] = useState("");
@@ -67,7 +67,7 @@ export default function Onboarding({
 
                 await AsyncStorage.setItem("profileCompleted", "true");
                 await AsyncStorage.setItem("nickname", nickname.trim());
-                onComplete();
+                onComplete(nickname.trim());
             } catch (e: any) {
                 setError("Bir hata oluştu, tekrar dene");
             } finally {

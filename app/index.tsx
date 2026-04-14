@@ -6,7 +6,7 @@ import axios from "axios";
 import Intent from "./intent";
 import Onboarding from "./onboarding";
 import Phone from "./phone";
-
+import WelcomeBack from "./welcome-back";
 const API_URL = "https://dateapp-backend.onrender.com";
 
 export default function Index() {
@@ -21,7 +21,10 @@ export default function Index() {
   const [needsRegister, setNeedsRegister] = useState(false);
   const [birthDate, setBirthDate] = useState("");
   const [birthError, setBirthError] = useState("");
-
+  // nickname → hoş geldin ekranında gösterilecek
+  const [nickname, setNickname] = useState("");
+  // showWelcomeBack → tekrar giriş yapınca hoş geldin ekranı göster
+  const [showWelcomeBack, setShowWelcomeBack] = useState(false)
   // useEffect → ekran ilk açıldığında bir kez çalışır
   useEffect(() => {
     const checkSession = async () => {
@@ -29,7 +32,7 @@ export default function Index() {
         const savedToken = await AsyncStorage.getItem("token");
         const savedPhone = await AsyncStorage.getItem("phoneVerified");
         const savedProfile = await AsyncStorage.getItem("profileCompleted");
-
+        const savedNickname = await AsyncStorage.getItem("nickname");
         if (savedToken && savedPhone) {
           setVerifiedPhone(savedPhone);
           setPhoneVerified(true);
@@ -37,6 +40,11 @@ export default function Index() {
 
           if (savedProfile === "true") {
             setProfileCompleted(true);
+            // Kayıtlı oturum varsa hoş geldin ekranı göster
+            if (savedNickname) {
+              setNickname(savedNickname);
+              setShowWelcomeBack(true);
+            }
           } else {
             const res = await axios.get(`${API_URL}/auth/me`, {
               params: { phone: savedPhone }
@@ -60,6 +68,8 @@ export default function Index() {
     setVerifiedPhone("");
     setProfileCompleted(false);
     setNeedsRegister(false);
+    setNickname("");
+    setShowWelcomeBack(false);
   };
 
   const handlePhoneVerified = async (phone: string) => {
@@ -80,6 +90,12 @@ export default function Index() {
       if (meRes.data.profile_completed) {
         await AsyncStorage.setItem("profileCompleted", "true");
         setProfileCompleted(true);
+        // Tekrar giriş → hoş geldin ekranını göster
+        if (meRes.data.nickname) {
+          setNickname(meRes.data.nickname);
+          await AsyncStorage.setItem("nickname", meRes.data.nickname);
+          setShowWelcomeBack(true);
+        }
       }
     } catch (error: any) {
       if (error?.response?.status === 404) {
@@ -174,18 +190,30 @@ export default function Index() {
     );
   }
 
-  // 3. Adım: Profil tamamlanmamışsa Onboarding
+  // 3. Adım: Hoş geldin ekranı (tekrar giriş)
+  if (loggedIn && profileCompleted && showWelcomeBack) {
+    return (
+      <WelcomeBack
+        nickname={nickname}
+        // Devam et → hoş geldin ekranını kapat, intent ekranına geç
+        onContinue={() => setShowWelcomeBack(false)}
+      />
+    );
+  }
+
+  // 4. Adım: Onboarding (ilk kez)
   if (loggedIn && !profileCompleted) {
     return (
       <Onboarding
         phone={verifiedPhone}
         age={userAge}
+        // Onboarding tamamlanınca nickname'i de al
         onComplete={handleProfileComplete}
       />
     );
   }
 
-  // 4. Adım: Her şey tamam → Intent ekranı
+  // 5. Adım: Intent ekranı
   if (loggedIn && profileCompleted) {
     return <Intent phone={verifiedPhone} onLogout={handleLogout} />;
   }
@@ -233,7 +261,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#333",
     color: "white",
-    // textAlign → yazıyı ortala
     textAlign: "center",
   },
   button: {
