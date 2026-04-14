@@ -13,7 +13,7 @@ type Message = {
   user: string;
   text: string;
   isSystem?: boolean;
-  isMine?: boolean; // Kendi mesajım mı?
+  isMine?: boolean;
 };
 
 export default function Chat({
@@ -28,32 +28,33 @@ export default function Chat({
   const [showPopup, setShowPopup] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [privateRoomId, setPrivateRoomId] = useState("");
-  // anonymousName → public odada kullanılan anonim isim
   const [anonymousName, setAnonymousName] = useState("");
-  // nickname → özel odada açılan gerçek isim
   const [nickname, setNickname] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Kilit sistemi state'leri
+  const [isRoomPublic, setIsRoomPublic] = useState(false);
+  const [showUnlockRequest, setShowUnlockRequest] = useState(false);
+  const [unlockRequester, setUnlockRequester] = useState("");
+
   const socketRef = useRef<Socket | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Şu an aktif olan ismim → public'te anonim, private'ta nickname
-  const myCurrentName = isPrivate ? nickname : anonymousName;
+  // Şu an aktif oda ID'si
+  const currentRoomId = isPrivate ? privateRoomId : roomId;
 
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. AsyncStorage'dan nickname'i al
         const savedNickname = await AsyncStorage.getItem("nickname");
         if (savedNickname) setNickname(savedNickname);
 
-        // 2. Backend'den odaya özel anonim ismimi al
         const res = await axios.get(`${API_URL}/matching/my-anonymous-name`, {
           params: { phone, room_id: roomId }
         });
         const anonName = res.data.anonymous_name;
         setAnonymousName(anonName);
 
-        // 3. Socket bağlantısını kur
         connectSocket(anonName, savedNickname || "");
       } catch (e) {
         console.log("Init hatası:", e);
@@ -89,7 +90,6 @@ export default function Chat({
     });
 
     socket.on("receive_message", (data: { user: string; text: string }) => {
-      // Gelen mesaj benim mi? user alanı anonim ismimle eşleşiyor mu?
       const isMine = data.user === anonName;
       setMessages(prev => [...prev, {
         user: data.user,
@@ -108,7 +108,7 @@ export default function Chat({
       setIsPrivate(true);
       setPrivateRoomId(data.private_room_id);
 
-      // Özel odaya katıl, bu sefer nickname ile
+      // Özel odaya nickname ile katıl
       socket.emit("join_room", {
         room_id: data.private_room_id,
         anonymous_name: nick || anonName,
@@ -116,7 +116,7 @@ export default function Chat({
 
       setMessages(prev => [...prev, {
         user: "Sistem",
-        text: `🔒 Özel odaya geçildi! Artık gerçek isimleriniz görünüyor.`,
+        text: "🔒 Özel odaya geçildi! Artık gerçek isimleriniz görünüyor.",
         isSystem: true,
       }]);
     });
@@ -129,11 +129,46 @@ export default function Chat({
         isSystem: true,
       }]);
     });
+
+    // Kilit açma isteği geldi → karşı taraf onay bekliyor
+    socket.on("unlock_request", (data: { message: string; requester: string }) => {
+      setUnlockRequester(data.requester);
+      setShowUnlockRequest(true);
+    });
+
+    // Kilit açma reddedildi
+    socket.on("unlock_rejected", (data: { message: string }) => {
+      setMessages(prev => [...prev, {
+        user: "Sistem",
+        text: data.message,
+        isSystem: true,
+      }]);
+    });
+
+    // Oda herkese açıldı
+    socket.on("room_unlocked", (data: { message: string }) => {
+      setIsRoomPublic(true);
+      setShowUnlockRequest(false);
+      setMessages(prev => [...prev, {
+        user: "Sistem",
+        text: data.message,
+        isSystem: true,
+      }]);
+    });
+
+    // Oda tekrar kilitlendi
+    socket.on("room_locked", (data: { message: string }) => {
+      setIsRoomPublic(false);
+      setMessages(prev => [...prev, {
+        user: "Sistem",
+        text: data.message,
+        isSystem: true,
+      }]);
+    });
   };
 
   const sendMessage = () => {
     if (!inputText.trim()) return;
-    const currentRoomId = isPrivate ? privateRoomId : roomId;
     socketRef.current?.emit("send_message", {
       room_id: currentRoomId,
       message: inputText,
@@ -149,6 +184,34 @@ export default function Chat({
     setShowPopup(false);
   };
 
+  // Kilidi açmak için istek gönder
+  const handleUnlockRequest = () => {
+    socketRef.current?.emit("request_unlock", {
+      room_id: currentRoomId,
+    });
+    setMessages(prev => [...prev, {
+      user: "Sistem",
+      text: "Karşındakine oda açma isteği gönderildi...",
+      isSystem: true,
+    }]);
+  };
+
+  // Kilit açma isteğine cevap ver
+  const handleUnlockResponse = (response: string) => {
+    socketRef.current?.emit("unlock_response", {
+      room_id: currentRoomId,
+      response,
+    });
+    setShowUnlockRequest(false);
+  };
+
+  // Odayı tekrar kilitle
+  const handleLockRoom = () => {
+    socketRef.current?.emit("lock_room", {
+      room_id: currentRoomId,
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -162,13 +225,29 @@ export default function Chat({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerText}>
-          {isPrivate ? "🔒 Özel Oda" : "👥 Public Oda"}
-        </Text>
-        <Text style={styles.headerSub}>
-          {/* Public'te anonim isim, private'ta nickname göster */}
-          Sen: {isPrivate ? nickname : anonymousName}
-        </Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerText}>
+            {isPrivate ? "Özel Oda" : "👥 Public Oda"}
+          </Text>
+          <Text style={styles.headerSub}>
+            Sen: {isPrivate ? nickname : anonymousName}
+          </Text>
+        </View>
+
+        {/* Kilit butonu → sadece özel odada göster */}
+        {isPrivate && (
+          <TouchableOpacity
+            style={styles.lockButton}
+            onPress={isRoomPublic ? handleLockRoom : handleUnlockRequest}
+          >
+            <Text style={styles.lockIcon}>
+              {isRoomPublic ? "🔓" : "🔒"}
+            </Text>
+            <Text style={styles.lockText}>
+              {isRoomPublic ? "Kapat" : "Aç"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Mesajlar */}
@@ -182,7 +261,6 @@ export default function Chat({
             key={index}
             style={[
               styles.bubbleWrapper,
-              // Wrapper hizalaması → kendi mesajım sağda, diğeri solda
               msg.isSystem
                 ? styles.wrapperCenter
                 : msg.isMine
@@ -190,11 +268,9 @@ export default function Chat({
                   : styles.wrapperLeft,
             ]}
           >
-            {/* Karşı tarafın ismini göster (kendi mesajımda gösterme) */}
             {!msg.isSystem && !msg.isMine && (
               <Text style={styles.messageUser}>{msg.user}</Text>
             )}
-
             <View style={[
               styles.messageBubble,
               msg.isSystem
@@ -217,7 +293,7 @@ export default function Chat({
       {/* Özel oda popup */}
       {showPopup && (
         <View style={styles.popup}>
-          <Text style={styles.popupTitle}>⏰ Süre Doldu!</Text>
+          <Text style={styles.popupTitle}>🎉 Tanışma Turu Bitti!</Text>
           <Text style={styles.popupText}>
             Özel odaya geçmek ister misiniz?
           </Text>
@@ -231,6 +307,30 @@ export default function Chat({
             <TouchableOpacity
               style={styles.noButton}
               onPress={() => sendChoice("hayir")}
+            >
+              <Text style={styles.popupButtonText}>❌ Hayır</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Kilit açma isteği popup */}
+      {showUnlockRequest && (
+        <View style={styles.popup}>
+          <Text style={styles.popupTitle}>🔓 Oda Açma İsteği</Text>
+          <Text style={styles.popupText}>
+            {unlockRequester} odayı herkese açmak istiyor. Kabul ediyor musun?
+          </Text>
+          <View style={styles.popupButtons}>
+            <TouchableOpacity
+              style={styles.yesButton}
+              onPress={() => handleUnlockResponse("evet")}
+            >
+              <Text style={styles.popupButtonText}>✅ Evet</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.noButton}
+              onPress={() => handleUnlockResponse("hayir")}
             >
               <Text style={styles.popupButtonText}>❌ Hayır</Text>
             </TouchableOpacity>
@@ -269,19 +369,33 @@ const styles = StyleSheet.create({
     backgroundColor: "#6C63FF",
     padding: 20,
     paddingTop: 40,
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+  },
+  headerLeft: {
+    flex: 1,
   },
   headerText: { color: "white", fontSize: 18, fontWeight: "bold" },
   headerSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 4 },
-  messages: { flex: 1, padding: 15 },
 
-  // Wrapper → mesaj balonunun hangi tarafa yaslanacağını belirler
+  // Kilit butonu
+  lockButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    padding: 8,
+    borderRadius: 12,
+    minWidth: 55,
+  },
+  lockIcon: { fontSize: 22 },
+  lockText: { color: "white", fontSize: 11, marginTop: 2 },
+
+  messages: { flex: 1, padding: 15 },
   bubbleWrapper: {
     marginBottom: 10,
     maxWidth: "80%",
   },
   wrapperRight: {
-    // alignSelf → sadece bu elementi sağa yasla
     alignSelf: "flex-end",
     alignItems: "flex-end",
   },
@@ -293,19 +407,16 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     alignItems: "center",
   },
-
   messageBubble: {
     padding: 12,
     borderRadius: 16,
   },
   myBubble: {
     backgroundColor: "#6C63FF",
-    // Sağ alt köşe düz → WhatsApp tarzı
     borderBottomRightRadius: 4,
   },
   otherBubble: {
     backgroundColor: "#1a1a1a",
-    // Sol alt köşe düz
     borderBottomLeftRadius: 4,
   },
   systemBubble: {
@@ -320,7 +431,6 @@ const styles = StyleSheet.create({
   },
   messageText: { fontSize: 15, color: "white" },
   systemText: { fontSize: 12, color: "#555", textAlign: "center" },
-
   popup: {
     backgroundColor: "#1a1a1a",
     margin: 15,
