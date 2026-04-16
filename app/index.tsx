@@ -75,7 +75,7 @@ export default function Index() {
   const handlePhoneVerified = async (phone: string) => {
     setVerifiedPhone(phone);
     setPhoneVerified(true);
-
+    setLoading(true);
     try {
       // Önce giriş dene → kullanıcı var mı?
       const res = await axios.post(`${API_URL}/auth/login`, { phone });
@@ -102,6 +102,8 @@ export default function Index() {
         // Kullanıcı yok → doğum tarihi ekranına geç
         setNeedsRegister(true);
       }
+    } finally {
+      setLoading(false);
     }
   };
 

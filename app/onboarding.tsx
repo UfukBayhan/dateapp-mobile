@@ -2,25 +2,28 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    StyleSheet,
-    Text, TextInput, TouchableOpacity,
-    View
+    ActivityIndicator, ScrollView, StyleSheet,
+    Text, TextInput, TouchableOpacity, View
 } from "react-native";
 
 const API_URL = "https://dateapp-backend.onrender.com";
 
-const INTENTS = [
-    { label: "☕ Kahve Buddy", value: "kahve-buddy" },
-    { label: "💑 Ciddi İlişki", value: "uzun süreli ilişki" },
-    { label: "✨ Takılmalık", value: "kısa süreli ilişki" },
-    { label: "💬 Dertleşme", value: "dertleşme" },
-    { label: "📚 Ders Arkadaşı", value: "ders arkadaşı" },
-];
-
 const GENDERS = ["Erkek", "Kadın", "Diğer"];
 
-const STEPS = ["Takma İsim", "Cinsiyet", "Ne Arıyorsun?"];
+const ORIENTATIONS = [
+    "Heteroseksüel",
+    "Eşcinsel",
+    "Lezbiyen",
+    "Biseksüel",
+    "Aseksüel",
+    "Demiseksüel",
+    "Panseksüel",
+    "Queer",
+    "Sorguluyorum",
+];
+
+// 3 adım: Takma İsim → Cinsiyet → Cinsel Yönelim
+const STEPS = ["Takma İsim", "Cinsiyet", "Cinsel Yönelim"];
 
 export default function Onboarding({
     phone,
@@ -34,11 +37,13 @@ export default function Onboarding({
     const [step, setStep] = useState(0);
     const [nickname, setNickname] = useState("");
     const [gender, setGender] = useState("");
-    const [intent, setIntent] = useState("");
+    const [orientation, setOrientation] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    const progress = ((step + 1) / (STEPS.length + 1)) * 100;
+    // %25 başlangıç (zorunlu bilgiler tamamlandı)
+    // Her adımda %25 artıyor → son adımda %100
+    const progress = 25 + ((step + 1) / STEPS.length) * 75;
 
     const handleNext = async () => {
         setError("");
@@ -51,18 +56,17 @@ export default function Onboarding({
             setError("Cinsiyet seç");
             return;
         }
+
+        // Adım 2 → son adım, backend'e gönder
         if (step === 2) {
-            if (!intent) {
-                setError("Arayışını seç");
-                return;
-            }
-            // Son adım → backend'e gönder
             setLoading(true);
             try {
                 await axios.put(`${API_URL}/auth/update-profile`, {
                     nickname: nickname.trim(),
                     gender,
-                    intent,
+                    // intent → eşleşme ekranında seçilecek, şimdilik boş
+                    intent: "kahve-buddy",
+                    sexual_orientation: orientation || null,
                 }, { params: { phone } });
 
                 await AsyncStorage.setItem("profileCompleted", "true");
@@ -76,6 +80,12 @@ export default function Onboarding({
             return;
         }
 
+        setStep(step + 1);
+    };
+
+    // Cinsel yönelim adımını atla
+    const handleSkip = () => {
+        setOrientation("");
         setStep(step + 1);
     };
 
@@ -99,9 +109,7 @@ export default function Onboarding({
             {/* Adım 0 - Takma İsim */}
             {step === 0 && (
                 <View style={styles.stepContainer}>
-                    <Text style={styles.subtitle}>
-                        Sana nasıl hitap edelim? 👋
-                    </Text>
+                    <Text style={styles.subtitle}>Sana nasıl hitap edelim? 👋</Text>
                     <Text style={styles.ageInfo}>Yaşın: {age}</Text>
                     <TextInput
                         style={styles.input}
@@ -139,49 +147,70 @@ export default function Onboarding({
                 </View>
             )}
 
-            {/* Adım 2 - Ne Arıyorsun */}
+            {/* Adım 2 - Cinsel Yönelim (Opsiyonel) */}
             {step === 2 && (
                 <View style={styles.stepContainer}>
-                    <Text style={styles.subtitle}>Ne arıyorsun?</Text>
-                    {INTENTS.map((item) => (
-                        <TouchableOpacity
-                            key={item.value}
-                            style={[
-                                styles.optionButton,
-                                intent === item.value && styles.optionButtonSelected,
-                            ]}
-                            onPress={() => setIntent(item.value)}
-                        >
-                            <Text style={[
-                                styles.optionText,
-                                intent === item.value && styles.optionTextSelected,
-                            ]}>
-                                {item.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                    <Text style={styles.subtitle}>En fazla 1 seçenek seçebilirsin</Text>
+                    <Text style={styles.optionalBadge}>Opsiyonel</Text>
+                    {/* ScrollView → liste uzun olduğu için kaydırılabilir */}
+                    <ScrollView style={styles.orientationList} showsVerticalScrollIndicator={false}>
+                        {ORIENTATIONS.map((o) => (
+                            <TouchableOpacity
+                                key={o}
+                                style={[
+                                    styles.orientationButton,
+                                    orientation === o && styles.optionButtonSelected,
+                                ]}
+                                onPress={() => setOrientation(orientation === o ? "" : o)}
+                            >
+                                <Text style={[
+                                    styles.orientationText,
+                                    orientation === o && styles.optionTextSelected,
+                                ]}>
+                                    {o}
+                                </Text>
+                                {/* Checkbox efekti */}
+                                <View style={[
+                                    styles.checkbox,
+                                    orientation === o && styles.checkboxSelected,
+                                ]}>
+                                    {orientation === o && <Text style={styles.checkmark}>✓</Text>}
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                 </View>
             )}
 
-            <TouchableOpacity
-                style={styles.button}
-                onPress={handleNext}
-                disabled={loading}
-            >
-                {loading ? (
-                    <ActivityIndicator color="white" />
-                ) : (
-                    <Text style={styles.buttonText}>
-                        {step === STEPS.length - 1 ? "Tamamla 🎉" : "Devam Et →"}
-                    </Text>
-                )}
-            </TouchableOpacity>
-
-            {step > 0 && (
-                <TouchableOpacity onPress={() => setStep(step - 1)}>
-                    <Text style={styles.backText}>← Geri</Text>
+            {/* Butonlar */}
+            <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                    style={styles.button}
+                    onPress={handleNext}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text style={styles.buttonText}>
+                            {step === STEPS.length - 1 ? "Tamamla 🎉" : "Devam Et →"}
+                        </Text>
+                    )}
                 </TouchableOpacity>
-            )}
+
+                {/* Skip butonu sadece cinsel yönelim adımında */}
+                {step === 2 && (
+                    <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+                        <Text style={styles.skipText}>Atla →</Text>
+                    </TouchableOpacity>
+                )}
+
+                {step > 0 && (
+                    <TouchableOpacity onPress={() => setStep(step - 1)}>
+                        <Text style={styles.backText}>← Geri</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
         </View>
     );
 }
@@ -226,7 +255,17 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: 15,
         color: "#aaa",
-        marginBottom: 20,
+        marginBottom: 10,
+    },
+    optionalBadge: {
+        color: "#6C63FF",
+        fontSize: 12,
+        marginBottom: 15,
+        backgroundColor: "#1a1a2e",
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
+        alignSelf: "flex-start",
     },
     ageInfo: {
         fontSize: 14,
@@ -235,7 +274,7 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
     },
     stepContainer: {
-        marginBottom: 30,
+        marginBottom: 20,
     },
     error: {
         color: "#ff4444",
@@ -271,17 +310,63 @@ const styles = StyleSheet.create({
         color: "#6C63FF",
         fontWeight: "bold",
     },
+    orientationList: {
+        maxHeight: 300,
+    },
+    orientationButton: {
+        backgroundColor: "#1a1a1a",
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 8,
+        borderWidth: 2,
+        borderColor: "#333",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
+    orientationText: {
+        color: "#aaa",
+        fontSize: 16,
+    },
+    checkbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 2,
+        borderColor: "#444",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    checkboxSelected: {
+        backgroundColor: "#6C63FF",
+        borderColor: "#6C63FF",
+    },
+    checkmark: {
+        color: "white",
+        fontSize: 12,
+        fontWeight: "bold",
+    },
+    buttonContainer: {
+        gap: 10,
+    },
     button: {
         backgroundColor: "#6C63FF",
         padding: 16,
         borderRadius: 12,
         alignItems: "center",
-        marginBottom: 15,
     },
     buttonText: {
         color: "white",
         fontSize: 16,
         fontWeight: "bold",
+    },
+    skipButton: {
+        alignItems: "center",
+        padding: 10,
+    },
+    skipText: {
+        color: "#aaa",
+        fontSize: 15,
     },
     backText: {
         color: "#666",
