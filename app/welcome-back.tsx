@@ -1,10 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import {
-    Animated,
-    StyleSheet,
-    Text, TouchableOpacity,
-    View
+    Animated, StyleSheet, Text, TouchableOpacity, View
 } from "react-native";
+import { useTheme } from "../utils/theme";
 
 export default function WelcomeBack({
     nickname,
@@ -13,21 +11,17 @@ export default function WelcomeBack({
     nickname: string;
     onContinue: () => void;
 }) {
-    // Animated.Value → React Native'in animasyon sistemi
-    // 0'dan başlayıp 1'e çıkacak
+    const { theme, isDark } = useTheme();
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
 
     useEffect(() => {
-        // Parallel → iki animasyonu aynı anda çalıştır
         Animated.parallel([
-            // Fade in → görünmez → görünür
             Animated.timing(fadeAnim, {
                 toValue: 1,
                 duration: 800,
-                useNativeDriver: true, // Performans için native driver kullan
+                useNativeDriver: true,
             }),
-            // Slide up → aşağıdan yukarı kayarak gel
             Animated.timing(slideAnim, {
                 toValue: 0,
                 duration: 800,
@@ -37,24 +31,32 @@ export default function WelcomeBack({
     }, []);
 
     return (
-        <View style={styles.container}>
-            {/* Animated.View → animasyon uygulanabilir View */}
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
             <Animated.View
                 style={[
                     styles.content,
                     {
                         opacity: fadeAnim,
-                        // translateY → yukarı aşağı hareket
                         transform: [{ translateY: slideAnim }],
                     },
                 ]}
             >
-                <Text style={styles.emoji}>👋</Text>
-                <Text style={styles.welcomeText}>Aramıza tekrar</Text>
-                <Text style={styles.welcomeText}>hoş geldin,</Text>
-                <Text style={styles.nickname}>{nickname}!</Text>
+                {/* HURMA logosu */}
+                <Text style={styles.logo}>🌴</Text>
+                <Text style={[styles.appName, { color: theme.primary }]}>HURMA</Text>
 
-                <Text style={styles.subtitle}>
+                <Text style={styles.emoji}>👋</Text>
+                <Text style={[styles.welcomeText, { color: theme.textSecondary }]}>
+                    Aramıza tekrar
+                </Text>
+                <Text style={[styles.welcomeText, { color: theme.textSecondary }]}>
+                    hoş geldin,
+                </Text>
+                <Text style={[styles.nickname, { color: theme.primary }]}>
+                    {nickname}!
+                </Text>
+
+                <Text style={[styles.subtitle, { color: theme.textTertiary }]}>
                     Bugün kimi tanımak istersin?
                 </Text>
 
@@ -67,9 +69,9 @@ export default function WelcomeBack({
                 </TouchableOpacity>
             </Animated.View>
 
-            {/* Arka plan dekoratif elementler */}
-            <View style={styles.circle1} />
-            <View style={styles.circle2} />
+            {/* Dekoratif daireler → temaya göre renk */}
+            <View style={[styles.circle1, { backgroundColor: theme.primary }]} />
+            <View style={[styles.circle2, { backgroundColor: theme.primary }]} />
         </View>
     );
 }
@@ -79,7 +81,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#0d0d0d",
         overflow: "hidden",
     },
     content: {
@@ -87,26 +88,33 @@ const styles = StyleSheet.create({
         padding: 30,
         zIndex: 1,
     },
+    logo: {
+        fontSize: 50,
+        marginBottom: 4,
+    },
+    appName: {
+        fontSize: 24,
+        fontWeight: "bold",
+        letterSpacing: 4,
+        marginBottom: 40,
+    },
     emoji: {
         fontSize: 70,
         marginBottom: 20,
     },
     welcomeText: {
         fontSize: 32,
-        color: "#aaa",
         fontWeight: "300",
         textAlign: "center",
     },
     nickname: {
         fontSize: 38,
-        color: "#6C63FF",
         fontWeight: "bold",
         textAlign: "center",
         marginBottom: 20,
     },
     subtitle: {
         fontSize: 16,
-        color: "#555",
         textAlign: "center",
         marginBottom: 50,
     },
@@ -115,12 +123,10 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         paddingHorizontal: 50,
         borderRadius: 30,
-        // Shadow → iOS gölge
         shadowColor: "#6C63FF",
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.4,
         shadowRadius: 15,
-        // elevation → Android gölge
         elevation: 10,
     },
     buttonText: {
@@ -128,13 +134,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "bold",
     },
-    // Dekoratif arka plan daireleri
     circle1: {
         position: "absolute",
         width: 300,
         height: 300,
         borderRadius: 150,
-        backgroundColor: "#6C63FF",
         opacity: 0.05,
         top: -50,
         right: -80,
@@ -144,7 +148,6 @@ const styles = StyleSheet.create({
         width: 200,
         height: 200,
         borderRadius: 100,
-        backgroundColor: "#6C63FF",
         opacity: 0.05,
         bottom: -30,
         left: -50,

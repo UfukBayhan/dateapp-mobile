@@ -1,6 +1,7 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useTheme } from "../utils/theme";
 import Chat from "./chat";
 
 const API_URL = "https://dateapp-backend.onrender.com";
@@ -13,74 +14,35 @@ const INTENTS = [
   { label: "📚 Ders Arkadaşı", value: "ders arkadaşı" },
 ];
 
-export default function Intent({ phone, onLogout }: { phone: string; onLogout: () => void }) {
-  const [selected, setSelected] = useState("");
+export default function Intent({ phone, onLogout, initialIntent }: {
+  phone: string;
+  onLogout: () => void;
+  initialIntent?: string;
+}) {
+  const { theme } = useTheme();
+  const [selected, setSelected] = useState(initialIntent || "");
   const [searching, setSearching] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [dots, setDots] = useState(".");
 
-  // Nokta animasyonu → "Aranıyor." "Aranıyor.." "Aranıyor..."
-  useEffect(() => {
-    if (!searching) return;
-    const interval = setInterval(() => {
-      setDots(prev => prev.length >= 3 ? "." : prev + ".");
-    }, 500);
-    // cleanup → searching bitince interval'ı durdur
-    return () => clearInterval(interval);
-  }, [searching]);
-
-  // roomId dolunca Chat ekranına geç
-  // Chat artık kendi anonim ismini backend'den çekiyor
-  if (roomId) {
-    return (
-      <Chat
-        phone={phone}
-        roomId={roomId}
-      />
-    );
-  }
-
-  if (searching) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.searchingEmoji}>🔍</Text>
-        <Text style={styles.searchingTitle}>Eşleşme Aranıyor{dots}</Text>
-        <Text style={styles.searchingSubtitle}>
-          Seninle aynı arayışta biri bekleniyor
-        </Text>
-        <ActivityIndicator size="large" color="#6C63FF" style={{ marginTop: 30 }} />
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => setSearching(false)}
-        >
-          <Text style={styles.cancelText}>İptal Et</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
+  // handleSelect önce tanımlanıyor ki useEffect içinde kullanılabilsin
   const handleSelect = async (intent: string) => {
     setSelected(intent);
     setSearching(true);
 
     try {
-      // Intent güncelle
       await axios.put(`${API_URL}/auth/update-intent`, null, {
         params: { phone, intent },
       });
 
-      // Eşleşme ara
       const matchRes = await axios.post(`${API_URL}/matching/find-match`, null, {
         params: { phone },
       });
 
       if (matchRes.data.current_room_id) {
-        // Hemen eşleşme bulundu!
         setRoomId(matchRes.data.current_room_id);
         setSearching(false);
       } else {
-        // Eşleşme yok → 3 saniyede bir kontrol et (polling)
-        // Polling → belirli aralıklarla sunucuya "eşleşme var mı?" diye sormak
         const interval = setInterval(async () => {
           try {
             const res = await axios.post(`${API_URL}/matching/find-match`, null, {
@@ -102,31 +64,77 @@ export default function Intent({ phone, onLogout }: { phone: string; onLogout: (
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🔍 Arayışın Ne?</Text>
-        <TouchableOpacity onPress={onLogout}>
-          <Text style={styles.logoutText}>Çıkış</Text>
+  // Nokta animasyonu
+  useEffect(() => {
+    if (!searching) return;
+    const interval = setInterval(() => {
+      setDots(prev => prev.length >= 3 ? "." : prev + ".");
+    }, 500);
+    return () => clearInterval(interval);
+  }, [searching]);
+
+  // initialIntent varsa direkt eşleşme aramaya başla
+  useEffect(() => {
+    if (initialIntent) {
+      handleSelect(initialIntent);
+    }
+  }, []);
+
+  if (roomId) {
+    return <Chat phone={phone} roomId={roomId} />;
+  }
+
+  if (searching) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Text style={styles.searchingEmoji}>🔍</Text>
+        <Text style={[styles.searchingTitle, { color: theme.text }]}>
+          Eşleşme Aranıyor{dots}
+        </Text>
+        <Text style={[styles.searchingSubtitle, { color: theme.textSecondary }]}>
+          Seninle aynı arayışta biri bekleniyor
+        </Text>
+        <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 30 }} />
+        <TouchableOpacity
+          style={[styles.cancelButton, { borderColor: theme.cardBorder }]}
+          onPress={() => setSearching(false)}
+        >
+          <Text style={[styles.cancelText, { color: theme.textSecondary }]}>İptal Et</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.subtitle}>Seni en iyi tanımlayan seçeneği seç</Text>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: theme.text }]}>Ne Arıyorsun?</Text>
+        <TouchableOpacity onPress={onLogout}>
+          <Text style={[styles.logoutText, { color: theme.primary }]}>Çıkış</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+        Seni en iyi tanımlayan seçeneği seç
+      </Text>
 
       {INTENTS.map((item) => (
         <TouchableOpacity
           key={item.value}
           style={[
             styles.intentButton,
-            selected === item.value && styles.intentButtonSelected,
+            { backgroundColor: theme.card, borderColor: theme.cardBorder },
+            selected === item.value && {
+              borderColor: theme.primary,
+              backgroundColor: theme.primaryLight,
+            },
           ]}
           onPress={() => handleSelect(item.value)}
         >
-          <Text
-            style={[
-              styles.intentText,
-              selected === item.value && styles.intentTextSelected,
-            ]}
-          >
+          <Text style={[
+            styles.intentText,
+            { color: theme.textSecondary },
+            selected === item.value && { color: theme.primary, fontWeight: "bold" },
+          ]}>
             {item.label}
           </Text>
         </TouchableOpacity>
@@ -141,7 +149,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#0d0d0d",
   },
   header: {
     flexDirection: "row",
@@ -153,16 +160,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "white",
   },
   logoutText: {
-    color: "#6C63FF",
     fontSize: 14,
   },
   subtitle: {
     fontSize: 16,
     marginBottom: 30,
-    color: "#aaa",
     textAlign: "center",
   },
   searchingEmoji: {
@@ -172,12 +176,10 @@ const styles = StyleSheet.create({
   searchingTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "white",
     marginBottom: 10,
   },
   searchingSubtitle: {
     fontSize: 15,
-    color: "#aaa",
     textAlign: "center",
     marginBottom: 10,
   },
@@ -186,33 +188,20 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#333",
   },
   cancelText: {
-    color: "#aaa",
     fontSize: 15,
   },
   intentButton: {
     width: "100%",
-    backgroundColor: "#1a1a1a",
     padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: "#333",
     alignItems: "center",
-  },
-  intentButtonSelected: {
-    borderColor: "#6C63FF",
-    backgroundColor: "#1a1a2e",
   },
   intentText: {
     fontSize: 16,
-    color: "#aaa",
     fontWeight: "500",
-  },
-  intentTextSelected: {
-    color: "#6C63FF",
-    fontWeight: "bold",
   },
 });
