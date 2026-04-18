@@ -60,7 +60,14 @@ export default function Chat({ phone, roomId }: { phone: string; roomId: string;
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      socket.emit("join_room", { room_id: roomId, anonymous_name: anonName });
+      // Önce phone'u kaydet → disconnect'te DB temizlemek için
+      socket.emit("register_phone", { phone: phone });
+
+      socket.emit("join_room", {
+        room_id: roomId,
+        anonymous_name: anonName,
+        phone: phone,
+      });
       setLoading(false);
     });
 
@@ -81,9 +88,9 @@ export default function Chat({ phone, roomId }: { phone: string; roomId: string;
       setIsPrivate(true);
       setPrivateRoomId(data.private_room_id);
       socket.emit("join_room", {
-        room_id: roomId,
-        anonymous_name: anonName,
-        phone: phone, // Disconnect'te DB temizlemek için
+        room_id: data.private_room_id,  // ← DOĞRU
+        anonymous_name: nick || anonName,
+        phone: phone,
       });
       setMessages(prev => [...prev, {
         user: "Sistem", text: "🔒 Özel odaya geçildi!", isSystem: true,

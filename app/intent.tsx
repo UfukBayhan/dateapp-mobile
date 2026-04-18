@@ -1,5 +1,5 @@
 import axios from "axios";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "../utils/theme";
 import Chat from "./chat";
@@ -25,7 +25,29 @@ export default function Intent({ phone, onLogout, initialIntent }: {
   const [roomId, setRoomId] = useState("");
   const [dots, setDots] = useState(".");
 
-  // handleSelect önce tanımlanıyor ki useEffect içinde kullanılabilsin
+  // Polling interval'ı ref ile saklıyoruz → temizleyebilelim
+  // useRef → her render'da yeniden oluşturulmaz, değeri kalıcı
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // DB'den arama durumunu temizle
+  const leaveRoom = async () => {
+    try {
+      await axios.post(`${API_URL}/matching/leave-room`, null, {
+        params: { phone }
+      });
+    } catch (e) { }
+  };
+
+  // İptal butonu → hem UI'ı hem DB'yi temizle
+  const handleCancel = async () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setSearching(false);
+    await leaveRoom();
+  };
+
   const handleSelect = async (intent: string) => {
     setSelected(intent);
     setSearching(true);
@@ -43,18 +65,19 @@ export default function Intent({ phone, onLogout, initialIntent }: {
         setRoomId(matchRes.data.current_room_id);
         setSearching(false);
       } else {
-        const interval = setInterval(async () => {
+        // Polling başlat → ref'e kaydet ki temizleyebilelim
+        pollingRef.current = setInterval(async () => {
           try {
             const res = await axios.post(`${API_URL}/matching/find-match`, null, {
               params: { phone },
             });
             if (res.data.current_room_id) {
-              clearInterval(interval);
+              if (pollingRef.current) clearInterval(pollingRef.current);
               setRoomId(res.data.current_room_id);
               setSearching(false);
             }
           } catch (e) {
-            clearInterval(interval);
+            if (pollingRef.current) clearInterval(pollingRef.current);
             setSearching(false);
           }
         }, 3000);
@@ -70,10 +93,24 @@ export default function Intent({ phone, onLogout, initialIntent }: {
     const interval = setInterval(() => {
       setDots(prev => prev.length >= 3 ? "." : prev + ".");
     }, 500);
+    // Cleanup → ekrandan çıkınca veya searching false olunca durdur
     return () => clearInterval(interval);
   }, [searching]);
 
-  // initialIntent varsa direkt eşleşme aramaya başla
+  // Component unmount olunca temizle
+  // Öğrenme notu: useEffect'in return'ü cleanup fonksiyonu
+  // Component ekrandan kalktığında otomatik çalışır
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+      // Eğer hala arama yapıyorsa DB'yi temizle
+      leaveRoom();
+    };
+  }, []);
+
+  // initialIntent varsa direkt aramaya başla
   useEffect(() => {
     if (initialIntent) {
       handleSelect(initialIntent);
@@ -97,7 +134,7 @@ export default function Intent({ phone, onLogout, initialIntent }: {
         <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 30 }} />
         <TouchableOpacity
           style={[styles.cancelButton, { borderColor: theme.cardBorder }]}
-          onPress={() => setSearching(false)}
+          onPress={handleCancel}
         >
           <Text style={[styles.cancelText, { color: theme.textSecondary }]}>İptal Et</Text>
         </TouchableOpacity>
