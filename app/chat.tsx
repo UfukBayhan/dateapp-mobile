@@ -80,7 +80,11 @@ export default function Chat({ phone, roomId }: { phone: string; roomId: string;
       setShowPopup(false);
       setIsPrivate(true);
       setPrivateRoomId(data.private_room_id);
-      socket.emit("join_room", { room_id: data.private_room_id, anonymous_name: nick || anonName });
+      socket.emit("join_room", {
+        room_id: roomId,
+        anonymous_name: anonName,
+        phone: phone, // Disconnect'te DB temizlemek için
+      });
       setMessages(prev => [...prev, {
         user: "Sistem", text: "🔒 Özel odaya geçildi!", isSystem: true,
       }]);
