@@ -25,7 +25,7 @@ const INTENT_STATS = [
     { value: "kısa süreli ilişki", label: "Takılmalık", emoji: "✨", color: "#F59E0B", bg: "#FFFBF0", border: "#F5E0A0", count: 0 },
     { value: "dertleşme", label: "Dertleşme", emoji: "💬", color: "#4CAF50", bg: "#F0FBF2", border: "#B8E6C0", count: 0 },
     { value: "ders arkadaşı", label: "Ders Arkadaşı", emoji: "📚", color: "#2196F3", bg: "#EFF6FF", border: "#BFDBFE", count: 0 },
-    { value: "sürpriz", label: "Sürpriz", emoji: "🎲", color: "#9C27B0", bg: "#F5F0FF", border: "#D8C8FF", count: 0 },
+
 ];
 
 const LIVE_ROOMS = [
@@ -266,7 +266,7 @@ export default function Home({
 
                         {/* Şu an bekleyenler */}
                         <View style={styles.sectionRow}>
-                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Şu an bekleyenler</Text>
+                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Bugünün İstatistikleri</Text>
                             <View style={styles.liveBadge}>
                                 <View style={styles.liveDot} />
                                 <Text style={styles.liveText}>Canlı</Text>
@@ -276,11 +276,15 @@ export default function Home({
                         {/* 3x2 grid */}
                         <View style={[styles.statsContainer, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
                             <View style={styles.statsGrid}>
-                                {INTENT_STATS.map((stat) => (
+                                {INTENT_STATS.map((stat, index) => (
                                     <TouchableOpacity
                                         key={stat.value}
                                         style={[
                                             styles.statCard,
+                                            // Son kart tek kalırsa tam genişlik yap
+                                            index === INTENT_STATS.length - 1 && INTENT_STATS.length % 2 !== 0
+                                                ? { width: "100%" }
+                                                : { width: "48%" },
                                             { backgroundColor: stat.bg },
                                             selectedIntent === stat.value
                                                 ? { borderColor: theme.primary, borderWidth: 2 }
@@ -291,11 +295,9 @@ export default function Home({
                                         <Text style={styles.statEmoji}>{stat.emoji}</Text>
                                         <Text style={styles.statLabel}>{stat.label}</Text>
                                         <Text style={[styles.statCount, { color: stat.color }]}>
-                                            {stat.value === "sürpriz" ? "🎲" : (intentStats[stat.value] || 0)}
+                                            {intentStats[stat.value] || 0}
                                         </Text>
-                                        <Text style={styles.statSub}>
-                                            {stat.value === "sürpriz" ? "rastgele" : "eşleşme bugün"}
-                                        </Text>
+                                        <Text style={styles.statSub}>eşleşme bugün</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
