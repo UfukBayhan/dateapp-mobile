@@ -1,6 +1,9 @@
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+    ActivityIndicator, ScrollView, StyleSheet,
+    Text, TouchableOpacity, View
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../utils/theme";
 import Chat from "./chat";
@@ -13,6 +16,16 @@ const INTENTS = [
     { label: "✨ Takılmalık", value: "kısa süreli ilişki" },
     { label: "💬 Dertleşme", value: "dertleşme" },
     { label: "📚 Ders Arkadaşı", value: "ders arkadaşı" },
+    { label: "🎲 Sürpriz Eşleşme", value: "sürpriz" },
+];
+
+const INTENT_STATS = [
+    { value: "kahve-buddy", label: "Kahve Buddy", emoji: "☕", color: "#6C63FF", bg: "#EEF0FF", border: "#6C63FF", count: 0 },
+    { value: "uzun süreli ilişki", label: "Ciddi İlişki", emoji: "💑", color: "#E91E63", bg: "#FFF5F8", border: "#F8D0DE", count: 0 },
+    { value: "kısa süreli ilişki", label: "Takılmalık", emoji: "✨", color: "#F59E0B", bg: "#FFFBF0", border: "#F5E0A0", count: 0 },
+    { value: "dertleşme", label: "Dertleşme", emoji: "💬", color: "#4CAF50", bg: "#F0FBF2", border: "#B8E6C0", count: 0 },
+    { value: "ders arkadaşı", label: "Ders Arkadaşı", emoji: "📚", color: "#2196F3", bg: "#EFF6FF", border: "#BFDBFE", count: 0 },
+    { value: "sürpriz", label: "Sürpriz", emoji: "🎲", color: "#9C27B0", bg: "#F5F0FF", border: "#D8C8FF", count: 0 },
 ];
 
 const LIVE_ROOMS = [
@@ -32,21 +45,14 @@ export default function Home({
 }) {
     const { theme } = useTheme();
     const [activeTab, setActiveTab] = useState<"match" | "watch">("match");
+    const [intentStats, setIntentStats] = useState<Record<string, number>>({});
     const [activeNavTab, setActiveNavTab] = useState("home");
-
-    // Seçili intent → chip'e tıklayınca güncellenir
     const [selectedIntent, setSelectedIntent] = useState("kahve-buddy");
-    // Arama durumu
     const [searching, setSearching] = useState(false);
     const [dots, setDots] = useState(".");
-    // Eşleşme bulununca roomId set edilir → chat ekranına geç
     const [roomId, setRoomId] = useState("");
-    // Hata mesajı
-    const [intentError, setIntentError] = useState("");
-
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Nokta animasyonu
     useEffect(() => {
         if (!searching) return;
         const interval = setInterval(() => {
@@ -54,8 +60,18 @@ export default function Home({
         }, 500);
         return () => clearInterval(interval);
     }, [searching]);
-
-    // Component unmount → temizle
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await axios.get(`${API_URL}/matching/intent-stats`);
+                setIntentStats(res.data);
+            } catch (e) { }
+        };
+        fetchStats();
+        // Her 30 saniyede bir güncelle
+        const interval = setInterval(fetchStats, 30000);
+        return () => clearInterval(interval);
+    }, []);
     useEffect(() => {
         return () => {
             if (pollingRef.current) clearInterval(pollingRef.current);
@@ -65,47 +81,32 @@ export default function Home({
 
     const leaveRoom = async () => {
         try {
-            await axios.post(`${API_URL}/matching/leave-room`, null, {
-                params: { phone }
-            });
+            await axios.post(`${API_URL}/matching/leave-room`, null, { params: { phone } });
         } catch (e) { }
     };
 
     const handleCancel = async () => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-        }
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
         setSearching(false);
         await leaveRoom();
     };
 
     const handleStartSearch = async () => {
-        if (!selectedIntent) {
-            setIntentError("Lütfen bir arayış seç!");
-            return;
-        }
-        setIntentError("");
         setSearching(true);
-
         try {
             await axios.put(`${API_URL}/auth/update-intent`, null, {
                 params: { phone, intent: selectedIntent },
             });
-
             const matchRes = await axios.post(`${API_URL}/matching/find-match`, null, {
                 params: { phone },
             });
-
             if (matchRes.data.current_room_id) {
                 setRoomId(matchRes.data.current_room_id);
                 setSearching(false);
             } else {
                 pollingRef.current = setInterval(async () => {
                     try {
-                        const res = await axios.post(`${API_URL}/matching/find-match`, null, {
-                            params: { phone },
-                        });
+                        const res = await axios.post(`${API_URL}/matching/find-match`, null, { params: { phone } });
                         if (res.data.current_room_id) {
                             if (pollingRef.current) clearInterval(pollingRef.current);
                             setRoomId(res.data.current_room_id);
@@ -122,45 +123,30 @@ export default function Home({
         }
     };
 
-    // Chat ekranına geç
-    if (roomId) {
-        return <Chat phone={phone} roomId={roomId} />;
-    }
+    const selectedIntentLabel = INTENTS.find(i => i.value === selectedIntent)?.label || "";
 
-    // Arama ekranı
+    if (roomId) return <Chat phone={phone} roomId={roomId} />;
+
     if (searching) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-                {/* Header */}
                 <View style={[styles.header, { borderBottomColor: theme.cardBorder }]}>
                     <View style={styles.headerLeft}>
                         <Text style={styles.logo}>🌴</Text>
                         <Text style={[styles.appName, { color: theme.primary }]}>HURMA</Text>
                     </View>
                 </View>
-
                 <View style={styles.searchingContainer}>
                     <Text style={styles.searchingEmoji}>🔍</Text>
-                    <Text style={[styles.searchingTitle, { color: theme.text }]}>
-                        Eşleşme Aranıyor{dots}
-                    </Text>
+                    <Text style={[styles.searchingTitle, { color: theme.text }]}>Eşleşme Aranıyor{dots}</Text>
                     <Text style={[styles.searchingSubtitle, { color: theme.textSecondary }]}>
                         Seninle aynı arayışta biri bekleniyor
                     </Text>
-
-                    {/* Seçili intent göster */}
                     <View style={[styles.selectedIntentBadge, { backgroundColor: theme.primaryLight }]}>
-                        <Text style={[styles.selectedIntentText, { color: theme.primary }]}>
-                            {INTENTS.find(i => i.value === selectedIntent)?.label}
-                        </Text>
+                        <Text style={[styles.selectedIntentText, { color: theme.primary }]}>{selectedIntentLabel}</Text>
                     </View>
-
                     <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 30 }} />
-
-                    <TouchableOpacity
-                        style={[styles.cancelButton, { borderColor: theme.cardBorder }]}
-                        onPress={handleCancel}
-                    >
+                    <TouchableOpacity style={[styles.cancelButton, { borderColor: theme.cardBorder }]} onPress={handleCancel}>
                         <Text style={[styles.cancelText, { color: theme.textSecondary }]}>İptal Et</Text>
                     </TouchableOpacity>
                 </View>
@@ -177,11 +163,14 @@ export default function Home({
                     <Text style={styles.logo}>🌴</Text>
                     <Text style={[styles.appName, { color: theme.primary }]}>HURMA</Text>
                 </View>
-                <TouchableOpacity
-                    style={[styles.notifButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.cardBorder }]}
-                >
-                    <Text style={styles.notifIcon}>🔔</Text>
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.primaryLight, borderColor: theme.cardBorder }]}>
+                        <Text style={styles.iconButtonText}>🔔</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.avatarButton, { backgroundColor: theme.primary }]}>
+                        <Text style={styles.iconButtonText}>👤</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Tab Bar */}
@@ -206,76 +195,115 @@ export default function Home({
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
-                {/* Eşleşme Bul Sekmesi */}
                 {activeTab === "match" && (
                     <View>
-                        <Text style={[styles.greeting, { color: theme.textSecondary }]}>
-                            Merhaba, <Text style={{ color: theme.primary, fontWeight: "bold" }}>{nickname}</Text> 👋
-                        </Text>
-                        <Text style={[styles.greetingSub, { color: theme.textTertiary }]}>
-                            Bugün kimi tanımak istersin?
-                        </Text>
+                        {/* Karşılama banner */}
+                        <View style={styles.welcomeBanner}>
+                            <View style={styles.bannerCircle1} />
+                            <View style={styles.bannerCircle2} />
+                            <Text style={styles.bannerGreeting}>Hoş geldin 👋</Text>
+                            <Text style={styles.bannerName}>{nickname}</Text>
+                            <View style={styles.bannerActiveRow}>
+                                <View style={styles.activeDot} />
+                                <Text style={styles.bannerActiveText}>247 kişi şu an aktif</Text>
+                            </View>
+                        </View>
 
-                        {/* Arayış Seçimi */}
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                            Ne arıyorsun?
-                        </Text>
+                        {/* Ne arıyorsun - kaydırmalı */}
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>Ne arıyorsun?</Text>
+                        <View style={styles.chipWrapper}>
+                            {/* Sağ soluklaşma efekti */}
+                            <View style={[styles.chipFade, { backgroundColor: theme.background }]} />
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={styles.chipScroll}
+                                contentContainerStyle={styles.chipScrollContent}
+                            >
+                                {INTENTS.map((item) => (
+                                    <TouchableOpacity
+                                        key={item.value}
+                                        style={[
+                                            styles.chip,
+                                            {
+                                                backgroundColor: selectedIntent === item.value ? theme.primary : theme.primaryLight,
+                                                borderColor: selectedIntent === item.value ? theme.primary : "#C5C0F8",
+                                            }
+                                        ]}
+                                        onPress={() => setSelectedIntent(item.value)}
+                                    >
+                                        <Text style={[styles.chipText, { color: selectedIntent === item.value ? "white" : theme.primary }]}>
+                                            {item.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
 
-                        {intentError ? (
-                            <Text style={styles.error}>{intentError}</Text>
-                        ) : null}
-
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                            {INTENTS.map((item) => (
-                                <TouchableOpacity
-                                    key={item.value}
-                                    style={[
-                                        styles.chip,
-                                        {
-                                            backgroundColor: selectedIntent === item.value ? theme.primary : theme.primaryLight,
-                                            borderColor: theme.primary,
-                                        }
-                                    ]}
-                                    onPress={() => {
-                                        setSelectedIntent(item.value);
-                                        setIntentError("");
-                                    }}
-                                >
-                                    <Text style={[
-                                        styles.chipText,
-                                        { color: selectedIntent === item.value ? "white" : theme.primary }
-                                    ]}>
-                                        {item.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-
-                        {/* Büyük Eşleşme Butonu */}
+                        {/* Aramaya başla butonu */}
                         <TouchableOpacity
                             style={[styles.matchCard, { backgroundColor: theme.primary }]}
                             onPress={handleStartSearch}
                             activeOpacity={0.9}
                         >
                             <View style={styles.matchCardInner}>
-                                <Text style={styles.matchCardIcon}>🔍</Text>
+                                <View style={styles.matchCardIconBox}>
+                                    <Text style={styles.matchCardIcon}>🔍</Text>
+                                </View>
                                 <View style={styles.matchCardText}>
                                     <Text style={styles.matchCardTitle}>Eşleşme Bul</Text>
                                     <Text style={styles.matchCardSubtitle}>
-                                        {INTENTS.find(i => i.value === selectedIntent)?.label} arayışında biri seni bekliyor
+                                        {selectedIntentLabel} arayışında biri seni bekliyor
                                     </Text>
                                 </View>
                             </View>
-                            <View style={[styles.matchCardButton, { backgroundColor: "white" }]}>
+                            <View style={styles.matchCardButton}>
                                 <Text style={[styles.matchCardButtonText, { color: theme.primary }]}>
                                     Aramaya Başla →
                                 </Text>
                             </View>
                         </TouchableOpacity>
+
+                        {/* Şu an bekleyenler */}
+                        <View style={styles.sectionRow}>
+                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Şu an bekleyenler</Text>
+                            <View style={styles.liveBadge}>
+                                <View style={styles.liveDot} />
+                                <Text style={styles.liveText}>Canlı</Text>
+                            </View>
+                        </View>
+
+                        {/* 3x2 grid */}
+                        <View style={[styles.statsContainer, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                            <View style={styles.statsGrid}>
+                                {INTENT_STATS.map((stat) => (
+                                    <TouchableOpacity
+                                        key={stat.value}
+                                        style={[
+                                            styles.statCard,
+                                            { backgroundColor: stat.bg },
+                                            selectedIntent === stat.value
+                                                ? { borderColor: theme.primary, borderWidth: 2 }
+                                                : { borderColor: stat.border, borderWidth: 1 },
+                                        ]}
+                                        onPress={() => setSelectedIntent(stat.value)}
+                                    >
+                                        <Text style={styles.statEmoji}>{stat.emoji}</Text>
+                                        <Text style={styles.statLabel}>{stat.label}</Text>
+                                        <Text style={[styles.statCount, { color: stat.color }]}>
+                                            {stat.value === "sürpriz" ? "🎲" : (intentStats[stat.value] || 0)}
+                                        </Text>
+                                        <Text style={styles.statSub}>
+                                            {stat.value === "sürpriz" ? "rastgele" : "eşleşme bugün"}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
                     </View>
                 )}
 
-                {/* İzle Sekmesi */}
                 {activeTab === "watch" && (
                     <View>
                         <Text style={[styles.greeting, { color: theme.textSecondary }]}>
@@ -288,24 +316,18 @@ export default function Home({
                                 activeOpacity={0.8}
                             >
                                 <View style={styles.roomCardTop}>
-                                    <View style={styles.liveBadge}>
+                                    <View style={styles.liveRow}>
                                         <View style={styles.liveDot} />
                                         <Text style={styles.liveText}>Canlı</Text>
                                     </View>
                                     <View style={[styles.intentBadge, { backgroundColor: room.intentBg }]}>
-                                        <Text style={[styles.intentBadgeText, { color: room.intentColor }]}>
-                                            {room.intent}
-                                        </Text>
+                                        <Text style={[styles.intentBadgeText, { color: room.intentColor }]}>{room.intent}</Text>
                                     </View>
                                 </View>
                                 <View style={styles.roomCardBottom}>
                                     <View style={styles.roomCardInfo}>
-                                        <Text style={[styles.roomNames, { color: theme.text }]}>
-                                            {room.anon1} & {room.anon2}
-                                        </Text>
-                                        <Text style={[styles.roomViewers, { color: theme.textTertiary }]}>
-                                            👁 {room.viewers} izleyici
-                                        </Text>
+                                        <Text style={[styles.roomNames, { color: theme.text }]}>{room.anon1} & {room.anon2}</Text>
+                                        <Text style={[styles.roomViewers, { color: theme.textTertiary }]}>👁 {room.viewers} izleyici</Text>
                                     </View>
                                     <View style={[styles.watchButton, { backgroundColor: theme.primaryLight }]}>
                                         <Text style={[styles.watchButtonText, { color: theme.primary }]}>İzle</Text>
@@ -326,11 +348,7 @@ export default function Home({
                     { id: "notif", icon: "🔔", label: "Bildirimler" },
                     { id: "profile", icon: "👤", label: "Profil" },
                 ].map((nav) => (
-                    <TouchableOpacity
-                        key={nav.id}
-                        style={styles.navItem}
-                        onPress={() => setActiveNavTab(nav.id)}
-                    >
+                    <TouchableOpacity key={nav.id} style={styles.navItem} onPress={() => setActiveNavTab(nav.id)}>
                         <Text style={styles.navIcon}>{nav.icon}</Text>
                         <Text style={[styles.navLabel, { color: activeNavTab === nav.id ? theme.primary : theme.textTertiary }]}>
                             {nav.label}
@@ -346,92 +364,139 @@ export default function Home({
 const styles = StyleSheet.create({
     container: { flex: 1 },
     header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderBottomWidth: 0.5,
+        flexDirection: "row", justifyContent: "space-between",
+        alignItems: "center", paddingHorizontal: 20,
+        paddingVertical: 12, borderBottomWidth: 0.5,
     },
     headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+    headerRight: { flexDirection: "row", gap: 10, alignItems: "center" },
     logo: { fontSize: 24 },
     appName: { fontSize: 20, fontWeight: "bold", letterSpacing: 3 },
-    notifButton: {
-        width: 38, height: 38, borderRadius: 19,
+    iconButton: {
+        width: 36, height: 36, borderRadius: 18,
         justifyContent: "center", alignItems: "center", borderWidth: 1,
     },
-    notifIcon: { fontSize: 16 },
+    avatarButton: {
+        width: 36, height: 36, borderRadius: 18,
+        justifyContent: "center", alignItems: "center",
+    },
+    iconButtonText: { fontSize: 16 },
     tabBar: {
         flexDirection: "row", margin: 16,
         borderRadius: 14, padding: 4, gap: 4,
     },
     tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
     tabText: { fontSize: 13, fontWeight: "600" },
-    content: { flex: 1, paddingHorizontal: 20 },
-    greeting: { fontSize: 15, marginBottom: 4, marginTop: 4 },
-    greetingSub: { fontSize: 13, marginBottom: 20 },
-    sectionTitle: { fontSize: 15, fontWeight: "600", marginBottom: 12 },
-    error: { color: "#FF4444", fontSize: 13, marginBottom: 10 },
-    chipScroll: { marginBottom: 20 },
+    content: { flex: 1, paddingHorizontal: 16 },
+
+    // Karşılama banner
+    welcomeBanner: {
+        backgroundColor: "#6C63FF", borderRadius: 20,
+        padding: 18, marginBottom: 16, overflow: "hidden",
+    },
+    bannerCircle1: {
+        position: "absolute", top: -20, right: -20,
+        width: 100, height: 100, backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 50,
+    },
+    bannerCircle2: {
+        position: "absolute", bottom: -30, right: 30,
+        width: 70, height: 70, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 35,
+    },
+    bannerGreeting: { color: "rgba(255,255,255,0.8)", fontSize: 12, marginBottom: 3 },
+    bannerName: { color: "white", fontSize: 20, fontWeight: "700", marginBottom: 8 },
+    bannerActiveRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    activeDot: { width: 8, height: 8, backgroundColor: "#4ADE80", borderRadius: 4 },
+    bannerActiveText: { color: "rgba(255,255,255,0.85)", fontSize: 12 },
+
+    // Chip
+    sectionTitle: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
+    chipWrapper: { position: "relative", marginBottom: 14 },
+    chipFade: {
+        position: "absolute", right: 0, top: 0, bottom: 0,
+        width: 40, zIndex: 1, opacity: 0.95,
+    },
+    chipScroll: { flexGrow: 0 },
+    chipScrollContent: { paddingBottom: 6, paddingRight: 40 },
     chip: {
-        paddingHorizontal: 14, paddingVertical: 8,
-        borderRadius: 20, marginRight: 8, borderWidth: 1,
+        paddingHorizontal: 14, paddingVertical: 7,
+        borderRadius: 20, marginRight: 8, borderWidth: 1.5,
     },
-    chipText: { fontSize: 13, fontWeight: "500" },
-    matchCard: { borderRadius: 20, padding: 20, marginBottom: 20 },
-    matchCardInner: {
-        flexDirection: "row", alignItems: "center",
-        gap: 14, marginBottom: 16,
+    chipText: { fontSize: 12, fontWeight: "500" },
+
+    // Match card
+    matchCard: { borderRadius: 16, padding: 16, marginBottom: 14 },
+    matchCardInner: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+    matchCardIconBox: {
+        width: 42, height: 42, backgroundColor: "rgba(255,255,255,0.2)",
+        borderRadius: 12, justifyContent: "center", alignItems: "center",
     },
-    matchCardIcon: { fontSize: 36 },
+    matchCardIcon: { fontSize: 20 },
     matchCardText: { flex: 1 },
-    matchCardTitle: { color: "white", fontSize: 18, fontWeight: "bold", marginBottom: 4 },
-    matchCardSubtitle: { color: "rgba(255,255,255,0.75)", fontSize: 13 },
-    matchCardButton: { borderRadius: 12, padding: 14, alignItems: "center" },
-    matchCardButtonText: { fontSize: 15, fontWeight: "bold" },
-    roomCard: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
+    matchCardTitle: { color: "white", fontSize: 14, fontWeight: "700", marginBottom: 3 },
+    matchCardSubtitle: { color: "rgba(255,255,255,0.75)", fontSize: 11 },
+    matchCardButton: {
+        backgroundColor: "white", borderRadius: 12,
+        padding: 12, alignItems: "center",
+    },
+    matchCardButtonText: { fontSize: 14, fontWeight: "700" },
+
+    // Stats
+    sectionRow: {
+        flexDirection: "row", justifyContent: "space-between",
+        alignItems: "center", marginBottom: 8,
+    },
+    liveBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+    liveDot: { width: 6, height: 6, backgroundColor: "#4ADE80", borderRadius: 3 },
+    liveText: { color: "#4ADE80", fontSize: 11, fontWeight: "500" },
+    statsContainer: {
+        borderRadius: 18, padding: 10,
+        marginBottom: 20, borderWidth: 1,
+    },
+    statsGrid: {
+        flexDirection: "row", flexWrap: "wrap", gap: 6,
+    },
+    statCard: {
+        width: "48%", borderRadius: 10, padding: 10,
+        alignItems: "center",
+    },
+    statEmoji: { fontSize: 18, marginBottom: 3 },
+    statLabel: { color: "#1a1a1a", fontSize: 10, fontWeight: "600", marginBottom: 3 },
+    statCount: { fontSize: 18, fontWeight: "700", lineHeight: 20 },
+    statSub: { color: "#aaa", fontSize: 9, marginTop: 2 },
+
+    // Rooms
+    greeting: { fontSize: 13, marginBottom: 14, marginTop: 4 },
+    roomCard: { borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1 },
     roomCardTop: {
         flexDirection: "row", justifyContent: "space-between",
         alignItems: "center", marginBottom: 10,
     },
-    liveBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
-    liveDot: { width: 8, height: 8, backgroundColor: "#4CAF50", borderRadius: 4 },
-    liveText: { color: "#4CAF50", fontSize: 12, fontWeight: "500" },
+    liveRow: { flexDirection: "row", alignItems: "center", gap: 5 },
     intentBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     intentBadgeText: { fontSize: 11, fontWeight: "500" },
-    roomCardBottom: {
-        flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    },
+    roomCardBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     roomCardInfo: { flex: 1 },
-    roomNames: { fontSize: 14, fontWeight: "500", marginBottom: 3 },
-    roomViewers: { fontSize: 12 },
+    roomNames: { fontSize: 13, fontWeight: "500", marginBottom: 3 },
+    roomViewers: { fontSize: 11 },
     watchButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-    watchButtonText: { fontSize: 13, fontWeight: "600" },
+    watchButtonText: { fontSize: 12, fontWeight: "600" },
+
+    // Bottom nav
     bottomNav: {
         flexDirection: "row", paddingVertical: 10,
         paddingBottom: 20, borderTopWidth: 0.5,
     },
     navItem: { flex: 1, alignItems: "center", gap: 3 },
     navIcon: { fontSize: 22 },
-    navIconActive: { fontSize: 22 },
     navLabel: { fontSize: 10 },
 
-    // Arama ekranı
-    searchingContainer: {
-        flex: 1, justifyContent: "center",
-        alignItems: "center", padding: 30,
-    },
+    // Searching
+    searchingContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 30 },
     searchingEmoji: { fontSize: 60, marginBottom: 20 },
     searchingTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 10 },
     searchingSubtitle: { fontSize: 15, textAlign: "center", marginBottom: 20 },
-    selectedIntentBadge: {
-        paddingHorizontal: 20, paddingVertical: 10,
-        borderRadius: 20, marginTop: 10,
-    },
+    selectedIntentBadge: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, marginTop: 10 },
     selectedIntentText: { fontSize: 15, fontWeight: "600" },
-    cancelButton: {
-        marginTop: 40, padding: 12,
-        borderRadius: 10, borderWidth: 1,
-    },
+    cancelButton: { marginTop: 40, padding: 12, borderRadius: 10, borderWidth: 1 },
     cancelText: { fontSize: 15 },
 });
