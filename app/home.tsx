@@ -34,10 +34,11 @@ const LIVE_ROOMS = [
     { id: "3", anon1: "Dağ Balığı", anon2: "Bulut Kaplanı", intent: "💑 Ciddi İlişki", viewers: 28, intentColor: "#E91E63", intentBg: "#FCE4EC" },
 ];
 
-export default function Home({ phone, nickname, onLogout }: {
+export default function Home({ phone, nickname, onLogout, onlineCount }: {
     phone: string;
     nickname: string;
     onLogout: () => void;
+    onlineCount: number;
 }) {
     const { theme, isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<"match" | "watch">("match");
@@ -47,7 +48,6 @@ export default function Home({ phone, nickname, onLogout }: {
     const [dots, setDots] = useState(".");
     const [roomId, setRoomId] = useState("");
     const [intentStats, setIntentStats] = useState<Record<string, number>>({});
-    const [onlineCount, setOnlineCount] = useState(0);
     const [statsOpen, setStatsOpen] = useState(false);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -60,16 +60,11 @@ export default function Home({ phone, nickname, onLogout }: {
         return () => clearInterval(interval);
     }, [searching]);
 
-    // Veri çekme → stats + online sayısı
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [statsRes, onlineRes] = await Promise.all([
-                    axios.get(`${API_URL}/matching/intent-stats`),
-                    axios.get(`${API_URL}/online-count`),
-                ]);
-                setIntentStats(statsRes.data);
-                setOnlineCount(onlineRes.data.count);
+                const res = await axios.get(`${API_URL}/matching/intent-stats`);
+                setIntentStats(res.data);
             } catch (e) { }
         };
         fetchData();

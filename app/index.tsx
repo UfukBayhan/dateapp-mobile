@@ -24,7 +24,7 @@ export default function Index() {
   const [birthError, setBirthError] = useState("");
   const [nickname, setNickname] = useState("");
   const [showWelcomeBack, setShowWelcomeBack] = useState(false);
-
+  const [onlineCount, setOnlineCount] = useState(0);
   // Global socket → login olunca bağlan, logout olunca kopar
   const socketRef = useRef<Socket | null>(null);
 
@@ -37,8 +37,11 @@ export default function Index() {
 
     socket.on("connect", () => {
       console.log("Global socket bağlandı:", socket.id);
-      // Backend'e phone'u kaydet → online sayısına dahil ol
       socket.emit("register_phone", { phone });
+    });
+
+    socket.on("online_count", (data: { count: number }) => {
+      setOnlineCount(data.count);
     });
 
     socket.on("disconnect", () => {
@@ -242,7 +245,7 @@ export default function Index() {
   }
 
   if (loggedIn && profileCompleted) {
-    return <Home phone={verifiedPhone} nickname={nickname} onLogout={handleLogout} />;
+    return <Home phone={verifiedPhone} nickname={nickname} onLogout={handleLogout} onlineCount={onlineCount} />;
   }
 
   return (
