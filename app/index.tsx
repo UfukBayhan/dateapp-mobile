@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { io, Socket } from "socket.io-client";
 import { useTheme } from "../utils/theme";
 import Home from "./home";
 import Onboarding from "./onboarding";
@@ -24,6 +25,35 @@ export default function Index() {
   const [nickname, setNickname] = useState("");
   const [showWelcomeBack, setShowWelcomeBack] = useState(false);
 
+  // Global socket → login olunca bağlan, logout olunca kopar
+  const socketRef = useRef<Socket | null>(null);
+
+  // Socket bağlantısını kur ve phone'u kaydet
+  const connectSocket = (phone: string) => {
+    if (socketRef.current?.connected) return;
+
+    const socket = io(API_URL, { transports: ["websocket"] });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("Global socket bağlandı:", socket.id);
+      // Backend'e phone'u kaydet → online sayısına dahil ol
+      socket.emit("register_phone", { phone });
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Global socket koptu");
+    });
+  };
+
+  // Socket'i kapat
+  const disconnectSocket = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+  };
+
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -36,12 +66,12 @@ export default function Index() {
           setVerifiedPhone(savedPhone);
           setPhoneVerified(true);
           setLoggedIn(true);
+          connectSocket(savedPhone); // Oturum varsa socket bağlan
 
           if (savedProfile === "true") {
             setProfileCompleted(true);
             if (savedNickname) {
               setNickname(savedNickname);
-
             }
           } else {
             const res = await axios.get(`${API_URL}/auth/me`, {
@@ -57,9 +87,13 @@ export default function Index() {
       }
     };
     checkSession();
+
+    // Uygulama kapanınca socket kapat
+    return () => disconnectSocket();
   }, []);
 
   const handleLogout = async () => {
+    disconnectSocket(); // Logout → socket kapat
     await AsyncStorage.multiRemove(["token", "phoneVerified", "profileCompleted", "nickname"]);
     setLoggedIn(false);
     setPhoneVerified(false);
@@ -79,6 +113,7 @@ export default function Index() {
       await AsyncStorage.setItem("token", res.data.access_token);
       await AsyncStorage.setItem("phoneVerified", phone);
       setLoggedIn(true);
+      connectSocket(phone); // Login → socket bağlan
 
       const meRes = await axios.get(`${API_URL}/auth/me`, { params: { phone } });
       setUserAge(meRes.data.age || 0);
@@ -116,6 +151,7 @@ export default function Index() {
       await AsyncStorage.setItem("phoneVerified", verifiedPhone);
       setLoggedIn(true);
       setNeedsRegister(false);
+      connectSocket(verifiedPhone); // Register → socket bağlan
 
       const birth = new Date(birthDate);
       const today = new Date();
@@ -144,12 +180,10 @@ export default function Index() {
     );
   }
 
-  // 1. Telefon doğrulama
   if (!phoneVerified && !needsRegister) {
     return <Phone onVerified={handlePhoneVerified} />;
   }
 
-  // 2. Yeni kullanıcı → doğum tarihi
   if (needsRegister) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
@@ -159,9 +193,7 @@ export default function Index() {
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Yaşını doğrulamak için doğum tarihini gir
         </Text>
-
         {birthError ? <Text style={styles.error}>{birthError}</Text> : null}
-
         <TextInput
           style={[styles.input, {
             backgroundColor: theme.inputBackground,
@@ -175,7 +207,6 @@ export default function Index() {
           keyboardType="numeric"
           maxLength={10}
         />
-
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.primary }]}
           onPress={handleRegister}
@@ -191,7 +222,6 @@ export default function Index() {
     );
   }
 
-  // 3. Hoş geldin ekranı
   if (loggedIn && profileCompleted && showWelcomeBack) {
     return (
       <WelcomeBack
@@ -201,7 +231,6 @@ export default function Index() {
     );
   }
 
-  // 4. Onboarding
   if (loggedIn && !profileCompleted) {
     return (
       <Onboarding
@@ -212,7 +241,6 @@ export default function Index() {
     );
   }
 
-  // 5. Ana ekran
   if (loggedIn && profileCompleted) {
     return <Home phone={verifiedPhone} nickname={nickname} onLogout={handleLogout} />;
   }
@@ -225,56 +253,16 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  logo: {
-    fontSize: 60,
-    marginBottom: 8,
-  },
-  appName: {
-    fontSize: 28,
-    fontWeight: "bold",
-    letterSpacing: 4,
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 15,
-    textAlign: "center",
-    marginBottom: 25,
-  },
-  error: {
-    color: "#FF4444",
-    fontSize: 13,
-    marginBottom: 15,
-    textAlign: "center",
-  },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
+  logo: { fontSize: 60, marginBottom: 8 },
+  appName: { fontSize: 28, fontWeight: "bold", letterSpacing: 4, marginBottom: 40 },
+  title: { fontSize: 26, fontWeight: "bold", marginBottom: 10 },
+  subtitle: { fontSize: 15, textAlign: "center", marginBottom: 25 },
+  error: { color: "#FF4444", fontSize: 13, marginBottom: 15, textAlign: "center" },
   input: {
-    width: "100%",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 15,
-    fontSize: 16,
-    borderWidth: 1,
-    textAlign: "center",
+    width: "100%", padding: 15, borderRadius: 12,
+    marginBottom: 15, fontSize: 16, borderWidth: 1, textAlign: "center",
   },
-  button: {
-    width: "100%",
-    padding: 15,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  button: { width: "100%", padding: 15, borderRadius: 12, alignItems: "center" },
+  buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
 });

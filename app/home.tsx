@@ -66,7 +66,7 @@ export default function Home({ phone, nickname, onLogout }: {
             try {
                 const [statsRes, onlineRes] = await Promise.all([
                     axios.get(`${API_URL}/matching/intent-stats`),
-                    axios.get(`${API_URL}/matching/online-count`),
+                    axios.get(`${API_URL}/online-count`),
                 ]);
                 setIntentStats(statsRes.data);
                 setOnlineCount(onlineRes.data.count);
