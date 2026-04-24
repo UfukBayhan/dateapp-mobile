@@ -2,9 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, ScrollView, StyleSheet,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { io, Socket } from "socket.io-client";
 import { useTheme } from "../utils/theme";
 
@@ -158,112 +162,117 @@ export default function Chat({ phone, roomId }: { phone: string; roomId: string;
       </View>
     );
   }
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerText}>
-            {isPrivate ? "Özel Oda" : "👥 Public Oda"}
-          </Text>
-          <Text style={styles.headerSub}>
-            Sen: {isPrivate ? nickname : anonymousName}
-          </Text>
-        </View>
-        {isPrivate && (
-          <TouchableOpacity
-            style={styles.lockButton}
-            onPress={isRoomPublic ? handleLockRoom : handleUnlockRequest}
-          >
-            <Text style={styles.lockIcon}>{isRoomPublic ? "🔓" : "🔒"}</Text>
-            <Text style={styles.lockText}>{isRoomPublic ? "Kapat" : "Aç"}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <ScrollView
-        style={styles.messages}
-        ref={scrollRef}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd()}
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#6C63FF" }} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {messages.map((msg, index) => (
-          <View key={index} style={[
-            styles.bubbleWrapper,
-            msg.isSystem ? styles.wrapperCenter : msg.isMine ? styles.wrapperRight : styles.wrapperLeft,
-          ]}>
-            {!msg.isSystem && !msg.isMine && (
-              <Text style={[styles.messageUser, { color: theme.primary }]}>{msg.user}</Text>
-            )}
-            <View style={[
-              styles.messageBubble,
-              msg.isSystem ? styles.systemBubble :
-                msg.isMine ? styles.myBubble :
-                  [styles.otherBubble, { backgroundColor: theme.card, borderColor: theme.cardBorder }],
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerText}>
+              {isPrivate ? "Özel Oda" : "👥 Public Oda"}
+            </Text>
+            <Text style={styles.headerSub}>
+              Sen: {isPrivate ? nickname : anonymousName}
+            </Text>
+          </View>
+          {isPrivate && (
+            <TouchableOpacity
+              style={styles.lockButton}
+              onPress={isRoomPublic ? handleLockRoom : handleUnlockRequest}
+            >
+              <Text style={styles.lockIcon}>{isRoomPublic ? "🔓" : "🔒"}</Text>
+              <Text style={styles.lockText}>{isRoomPublic ? "Kapat" : "Aç"}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <ScrollView
+          style={styles.messages}
+          ref={scrollRef}
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd()}
+        >
+          {messages.map((msg, index) => (
+            <View key={index} style={[
+              styles.bubbleWrapper,
+              msg.isSystem ? styles.wrapperCenter : msg.isMine ? styles.wrapperRight : styles.wrapperLeft,
             ]}>
-              <Text style={[
-                styles.messageText,
-                { color: msg.isMine ? "white" : theme.text },
-                msg.isSystem && [styles.systemText, { color: theme.textTertiary }],
+              {!msg.isSystem && !msg.isMine && (
+                <Text style={[styles.messageUser, { color: theme.primary }]}>{msg.user}</Text>
+              )}
+              <View style={[
+                styles.messageBubble,
+                msg.isSystem ? styles.systemBubble :
+                  msg.isMine ? styles.myBubble :
+                    [styles.otherBubble, { backgroundColor: theme.card, borderColor: theme.cardBorder }],
               ]}>
-                {msg.text}
-              </Text>
+                <Text style={[
+                  styles.messageText,
+                  { color: msg.isMine ? "white" : theme.text },
+                  msg.isSystem && [styles.systemText, { color: theme.textTertiary }],
+                ]}>
+                  {msg.text}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+
+        {showPopup && (
+          <View style={[styles.popup, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.popupTitle, { color: theme.text }]}>🎉 Tanışma Turu Bitti!</Text>
+            <Text style={[styles.popupText, { color: theme.textSecondary }]}>
+              Özel odaya geçmek ister misiniz?
+            </Text>
+            <View style={styles.popupButtons}>
+              <TouchableOpacity style={styles.yesButton} onPress={() => sendChoice("evet")}>
+                <Text style={styles.popupButtonText}>✅ Evet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.noButton} onPress={() => sendChoice("hayir")}>
+                <Text style={styles.popupButtonText}>❌ Hayır</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        ))}
-      </ScrollView>
+        )}
 
-      {showPopup && (
-        <View style={[styles.popup, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <Text style={[styles.popupTitle, { color: theme.text }]}>🎉 Tanışma Turu Bitti!</Text>
-          <Text style={[styles.popupText, { color: theme.textSecondary }]}>
-            Özel odaya geçmek ister misiniz?
-          </Text>
-          <View style={styles.popupButtons}>
-            <TouchableOpacity style={styles.yesButton} onPress={() => sendChoice("evet")}>
-              <Text style={styles.popupButtonText}>✅ Evet</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.noButton} onPress={() => sendChoice("hayir")}>
-              <Text style={styles.popupButtonText}>❌ Hayır</Text>
-            </TouchableOpacity>
+        {showUnlockRequest && (
+          <View style={[styles.popup, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.popupTitle, { color: theme.text }]}>🔓 Oda Açma İsteği</Text>
+            <Text style={[styles.popupText, { color: theme.textSecondary }]}>
+              {unlockRequester} odayı herkese açmak istiyor. Kabul ediyor musun?
+            </Text>
+            <View style={styles.popupButtons}>
+              <TouchableOpacity style={styles.yesButton} onPress={() => handleUnlockResponse("evet")}>
+                <Text style={styles.popupButtonText}>✅ Evet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.noButton} onPress={() => handleUnlockResponse("hayir")}>
+                <Text style={styles.popupButtonText}>❌ Hayır</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {showUnlockRequest && (
-        <View style={[styles.popup, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <Text style={[styles.popupTitle, { color: theme.text }]}>🔓 Oda Açma İsteği</Text>
-          <Text style={[styles.popupText, { color: theme.textSecondary }]}>
-            {unlockRequester} odayı herkese açmak istiyor. Kabul ediyor musun?
-          </Text>
-          <View style={styles.popupButtons}>
-            <TouchableOpacity style={styles.yesButton} onPress={() => handleUnlockResponse("evet")}>
-              <Text style={styles.popupButtonText}>✅ Evet</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.noButton} onPress={() => handleUnlockResponse("hayir")}>
-              <Text style={styles.popupButtonText}>❌ Hayır</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={[styles.inputArea, { backgroundColor: theme.card, borderTopColor: theme.cardBorder }]}>
+          <TextInput
+            style={[styles.input, {
+              backgroundColor: theme.inputBackground,
+              borderColor: theme.inputBorder,
+              color: theme.text,
+            }]}
+            placeholder="Mesaj yaz..."
+            placeholderTextColor={theme.textTertiary}
+            value={inputText}
+            onChangeText={setInputText}
+            onSubmitEditing={sendMessage}
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+            <Text style={styles.sendButtonText}>➤</Text>
+          </TouchableOpacity>
         </View>
-      )}
 
-      <View style={[styles.inputArea, { backgroundColor: theme.card, borderTopColor: theme.cardBorder }]}>
-        <TextInput
-          style={[styles.input, {
-            backgroundColor: theme.inputBackground,
-            borderColor: theme.inputBorder,
-            color: theme.text,
-          }]}
-          placeholder="Mesaj yaz..."
-          placeholderTextColor={theme.textTertiary}
-          value={inputText}
-          onChangeText={setInputText}
-          onSubmitEditing={sendMessage}
-        />
-        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-          <Text style={styles.sendButtonText}>➤</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -274,7 +283,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "#6C63FF",
     padding: 20,
-    paddingTop: 40,
+    paddingTop: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -313,7 +322,12 @@ const styles = StyleSheet.create({
   yesButton: { backgroundColor: "#4CAF50", padding: 12, borderRadius: 10, flex: 1, alignItems: "center" },
   noButton: { backgroundColor: "#f44336", padding: 12, borderRadius: 10, flex: 1, alignItems: "center" },
   popupButtonText: { color: "white", fontWeight: "bold", fontSize: 15 },
-  inputArea: { flexDirection: "row", padding: 10, borderTopWidth: 1 },
+  inputArea: {
+    flexDirection: "row",
+    padding: 10,
+    borderTopWidth: 1,
+    paddingBottom: Platform.OS === "ios" ? 30 : 10,
+  },
   input: { flex: 1, padding: 12, borderRadius: 25, fontSize: 15, marginRight: 10, borderWidth: 1 },
   sendButton: {
     backgroundColor: "#6C63FF", width: 45, height: 45,
