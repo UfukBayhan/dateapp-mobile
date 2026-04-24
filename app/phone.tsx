@@ -111,6 +111,8 @@ export default function Phone({ onVerified }: { onVerified: (phone: string) => v
           onChangeText={setPhone}
           keyboardType="number-pad"
           maxLength={11}
+          returnKeyType="done"        // ← klavyede "Bitti" butonu çıkar
+          onSubmitEditing={handleSendCode}
         />
       </View>
 
