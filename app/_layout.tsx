@@ -1,20 +1,11 @@
 import { Stack } from "expo-router";
 import React from "react";
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, TouchableWithoutFeedback } from "react-native";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 export default function RootLayout() {
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <Stack screenOptions={{ headerShown: false }} />
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+    <KeyboardProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </KeyboardProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-});
