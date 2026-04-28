@@ -231,7 +231,7 @@ export default function Index() {
               <DateTimePicker
                 value={birthDate}
                 mode="date"
-                display="default"
+                display="spinner"
                 maximumDate={new Date(new Date().getFullYear() - 18, 11, 31)}
                 minimumDate={new Date(1950, 0, 1)}
                 onChange={(_: any, selectedDate?: Date) => {
