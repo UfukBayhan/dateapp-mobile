@@ -1,10 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Platform, StyleSheet,
-  Text, TouchableOpacity, View
+  Text, TextInput, TouchableOpacity, View
 } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { useTheme } from "../utils/theme";
@@ -21,6 +20,12 @@ const formatDate = (date: Date) => {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
+
+// DateTimePicker sadece native'de import et
+let DateTimePicker: any = null;
+if (Platform.OS !== "web") {
+  DateTimePicker = require("@react-native-community/datetimepicker").default;
+}
 
 export default function Index() {
   const { theme } = useTheme();
@@ -43,19 +48,12 @@ export default function Index() {
     if (socketRef.current?.connected) return;
     const socket = io(API_URL, { transports: ["websocket"] });
     socketRef.current = socket;
-    socket.on("connect", () => {
-      socket.emit("register_phone", { phone });
-    });
-    socket.on("online_count", (data: { count: number }) => {
-      setOnlineCount(data.count);
-    });
+    socket.on("connect", () => { socket.emit("register_phone", { phone }); });
+    socket.on("online_count", (data: { count: number }) => { setOnlineCount(data.count); });
   };
 
   const disconnectSocket = () => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
+    if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
   };
 
   useEffect(() => {
@@ -93,13 +91,9 @@ export default function Index() {
   const handleLogout = async () => {
     disconnectSocket();
     await AsyncStorage.multiRemove(["token", "phoneVerified", "profileCompleted", "nickname"]);
-    setLoggedIn(false);
-    setPhoneVerified(false);
-    setVerifiedPhone("");
-    setProfileCompleted(false);
-    setNeedsRegister(false);
-    setNickname("");
-    setShowWelcomeBack(false);
+    setLoggedIn(false); setPhoneVerified(false); setVerifiedPhone("");
+    setProfileCompleted(false); setNeedsRegister(false);
+    setNickname(""); setShowWelcomeBack(false);
   };
 
   const handlePhoneVerified = async (phone: string) => {
@@ -133,8 +127,19 @@ export default function Index() {
   };
 
   const handleRegister = async () => {
-    setLoading(true);
     setBirthError("");
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    const realAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ? age - 1 : age;
+
+    if (realAge < 18) {
+      setBirthError("18 yaşından küçükler kayıt olamaz");
+      return;
+    }
+
+    setLoading(true);
     try {
       const res = await axios.post(`${API_URL}/auth/register`, {
         phone: verifiedPhone,
@@ -145,10 +150,7 @@ export default function Index() {
       setLoggedIn(true);
       setNeedsRegister(false);
       connectSocket(verifiedPhone);
-
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      setUserAge(age);
+      setUserAge(realAge);
     } catch (e: any) {
       const msg = e?.response?.data?.detail;
       setBirthError(typeof msg === "string" ? msg : "Bir hata oluştu");
@@ -191,42 +193,65 @@ export default function Index() {
 
         {birthError ? <Text style={styles.error}>{birthError}</Text> : null}
 
-        {/* Android → butona tıklayınca picker aç */}
-        {Platform.OS === "android" && (
-          <TouchableOpacity
-            style={[styles.dateButton, { backgroundColor: theme.inputBackground, borderColor: theme.inputBorder }]}
-            onPress={() => setShowPicker(true)}
-          >
-            <Text style={[styles.dateButtonText, { color: theme.text }]}>
-              📅 {formatDate(birthDate)}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Android picker modal */}
-        {Platform.OS === "android" && showPicker && (
-          <DateTimePicker
-            value={birthDate}
-            mode="date"
-            display="default"
-            maximumDate={new Date(new Date().getFullYear() - 18, 11, 31)}
-            minimumDate={new Date(1950, 0, 1)}
-            onChange={(event, selectedDate) => {
-              setShowPicker(false);
-              if (selectedDate) setBirthDate(selectedDate);
+        {/* Web → text input */}
+        {Platform.OS === "web" && (
+          <TextInput
+            style={[styles.input, {
+              backgroundColor: theme.inputBackground,
+              borderColor: theme.inputBorder,
+              color: theme.text,
+            }]}
+            placeholder="1995-01-01"
+            placeholderTextColor={theme.textTertiary}
+            value={formatDate(birthDate)}
+            onChangeText={(text) => {
+              const parsed = new Date(text);
+              if (!isNaN(parsed.getTime())) setBirthDate(parsed);
             }}
+            keyboardType="numeric"
+            maxLength={10}
           />
         )}
 
+        {/* Android → buton + modal picker */}
+        {Platform.OS === "android" && (
+          <>
+            <TouchableOpacity
+              style={[styles.dateButton, {
+                backgroundColor: theme.inputBackground,
+                borderColor: theme.inputBorder,
+              }]}
+              onPress={() => setShowPicker(true)}
+            >
+              <Text style={[styles.dateButtonText, { color: theme.text }]}>
+                📅 {formatDate(birthDate)}
+              </Text>
+            </TouchableOpacity>
+            {showPicker && DateTimePicker && (
+              <DateTimePicker
+                value={birthDate}
+                mode="date"
+                display="default"
+                maximumDate={new Date(new Date().getFullYear() - 18, 11, 31)}
+                minimumDate={new Date(1950, 0, 1)}
+                onChange={(_: any, selectedDate?: Date) => {
+                  setShowPicker(false);
+                  if (selectedDate) setBirthDate(selectedDate);
+                }}
+              />
+            )}
+          </>
+        )}
+
         {/* iOS → inline spinner */}
-        {Platform.OS === "ios" && (
+        {Platform.OS === "ios" && DateTimePicker && (
           <DateTimePicker
             value={birthDate}
             mode="date"
             display="spinner"
             maximumDate={new Date(new Date().getFullYear() - 18, 11, 31)}
             minimumDate={new Date(1950, 0, 1)}
-            onChange={(event, selectedDate) => {
+            onChange={(_: any, selectedDate?: Date) => {
               if (selectedDate) setBirthDate(selectedDate);
             }}
             style={{ width: "100%", marginBottom: 10 }}
@@ -256,11 +281,7 @@ export default function Index() {
   // ── Onboarding ──
   if (loggedIn && !profileCompleted) {
     return (
-      <Onboarding
-        phone={verifiedPhone}
-        age={userAge}
-        onComplete={handleProfileComplete}
-      />
+      <Onboarding phone={verifiedPhone} age={userAge} onComplete={handleProfileComplete} />
     );
   }
 
@@ -290,6 +311,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: "bold", marginBottom: 10 },
   subtitle: { fontSize: 15, textAlign: "center", marginBottom: 25 },
   error: { color: "#FF4444", fontSize: 13, marginBottom: 15, textAlign: "center" },
+  input: {
+    width: "100%", padding: 15, borderRadius: 12,
+    marginBottom: 15, fontSize: 16, borderWidth: 1, textAlign: "center",
+  },
   dateButton: {
     width: "100%", padding: 15, borderRadius: 12,
     marginBottom: 15, borderWidth: 1, alignItems: "center",
