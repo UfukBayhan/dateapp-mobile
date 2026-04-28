@@ -256,34 +256,39 @@ export default function Home({ phone, nickname, onLogout, onlineCount }: {
                         </View>
 
                         {/* İstatistik Kartı */}
-                        <TouchableOpacity
-                            style={[styles.statsCard, { shadowColor: theme.primary }]}
-                            onPress={() => setStatsOpen(!statsOpen)}
-                            activeOpacity={0.9}
-                        >
-                            <LinearGradient
-                                colors={statsOpen ? ["#5B4FE8", "#8B5CF6"] : [theme.card, theme.primaryLight]}
-                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                                style={styles.statsHeader}
-                            >
-                                <View style={{ flex: 1 }}>
-                                    <Text style={[styles.statsTitle, { color: statsOpen ? "white" : theme.text }]}>
-                                        Bugünün İstatistikleri
-                                    </Text>
-                                    <Text style={[styles.statsSub, { color: statsOpen ? "rgba(255,255,255,0.7)" : theme.textSecondary }]}>
-                                        Kaç kişi eşleşti? (Gözat)
-                                    </Text>
-                                </View>
-                                <LinearGradient
-                                    colors={statsOpen ? ["rgba(255,255,255,0.3)", "rgba(255,255,255,0.15)"] : [theme.primary, "#9B8FFF"]}
-                                    style={styles.statsArrow}
-                                >
-                                    <Text style={{ color: "white", fontSize: 18, fontWeight: "700" }}>
-                                        {statsOpen ? "∨" : "›"}
-                                    </Text>
-                                </LinearGradient>
-                            </LinearGradient>
+                        <View style={[styles.statsCard, { shadowColor: theme.primary }]}>
 
+                            {/* SADECE HEADER TIKLANABİLİR */}
+                            <TouchableOpacity
+                                onPress={() => setStatsOpen(!statsOpen)}
+                                activeOpacity={0.9}
+                            >
+                                <LinearGradient
+                                    colors={statsOpen ? ["#5B4FE8", "#8B5CF6"] : [theme.card, theme.primaryLight]}
+                                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                                    style={styles.statsHeader}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.statsTitle, { color: statsOpen ? "white" : theme.text }]}>
+                                            Bugünün İstatistikleri
+                                        </Text>
+                                        <Text style={[styles.statsSub, { color: statsOpen ? "rgba(255,255,255,0.7)" : theme.textSecondary }]}>
+                                            Kaç kişi eşleşti? (Gözat)
+                                        </Text>
+                                    </View>
+
+                                    <LinearGradient
+                                        colors={statsOpen ? ["rgba(255,255,255,0.3)", "rgba(255,255,255,0.15)"] : [theme.primary, "#9B8FFF"]}
+                                        style={styles.statsArrow}
+                                    >
+                                        <Text style={{ color: "white", fontSize: 18, fontWeight: "700" }}>
+                                            {statsOpen ? "∨" : "›"}
+                                        </Text>
+                                    </LinearGradient>
+                                </LinearGradient>
+                            </TouchableOpacity>
+
+                            {/* BURASI ARTIK TIKLANINCA KAPANMAZ */}
                             {statsOpen && (
                                 <View style={[styles.statsGrid, { backgroundColor: theme.card }]}>
                                     {INTENT_STATS.map((stat, index) => (
@@ -301,12 +306,14 @@ export default function Home({ phone, nickname, onLogout, onlineCount }: {
                                             <Text style={[styles.statCount, { color: stat.color }]}>
                                                 {intentStats[stat.value] || 0}
                                             </Text>
-                                            <Text style={[styles.statSub, { color: theme.textSecondary }]}>eşleşme bugün</Text>
+                                            <Text style={[styles.statSub, { color: theme.textSecondary }]}>
+                                                eşleşme bugün
+                                            </Text>
                                         </View>
                                     ))}
                                 </View>
                             )}
-                        </TouchableOpacity>
+                        </View>
 
                     </View>
                 )}

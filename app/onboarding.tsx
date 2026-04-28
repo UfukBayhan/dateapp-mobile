@@ -16,7 +16,35 @@ const ORIENTATIONS = [
     "Aseksüel", "Demiseksüel", "Panseksüel", "Queer", "Sorguluyorum",
 ];
 
-const STEPS = ["Takma İsim", "Cinsiyet", "Cinsel Yönelim"];
+const ANIMALS = [
+    { name: "Kurt", emoji: "🐺" },
+    { name: "Kartal", emoji: "🦅" },
+    { name: "Aslan", emoji: "🦁" },
+    { name: "Kaplan", emoji: "🐯" },
+    { name: "Ayı", emoji: "🐻" },
+    { name: "Tilki", emoji: "🦊" },
+    { name: "Atmaca", emoji: "🦆" },
+    { name: "Leopar", emoji: "🐆" },
+    { name: "Vaşak", emoji: "🐱" },
+    { name: "Çita", emoji: "🐆" },
+    { name: "Panter", emoji: "🐈‍⬛" },
+    { name: "Şahin", emoji: "🦅" },
+    { name: "Baykuş", emoji: "🦉" },
+    { name: "Karga", emoji: "🐦‍⬛" },
+    { name: "Puma", emoji: "🐈" },
+    { name: "Jaguar", emoji: "🐆" },
+    { name: "Ejderha", emoji: "🐉" },
+    { name: "Ahtapot", emoji: "🐙" },
+    { name: "Köpek Balığı", emoji: "🦈" },
+    { name: "Akbaba", emoji: "🦅" },
+    { name: "Boz Ayı", emoji: "🐻" },
+    { name: "Anka", emoji: "🔥" },
+    { name: "Timsah", emoji: "🐊" },
+    { name: "Kobra", emoji: "🐍" },
+    { name: "Bison", emoji: "🦬" },
+];
+
+const STEPS = ["Takma İsim", "Cinsiyet", "Cinsel Yönelim", "Hayvan Motifi"];
 
 export default function Onboarding({
     phone, age, onComplete,
@@ -30,6 +58,7 @@ export default function Onboarding({
     const [nickname, setNickname] = useState("");
     const [gender, setGender] = useState("");
     const [orientation, setOrientation] = useState("");
+    const [selectedAnimal, setSelectedAnimal] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -46,8 +75,11 @@ export default function Onboarding({
             setError("Cinsiyet seç");
             return;
         }
-
-        if (step === 2) {
+        if (step === 3) {
+            if (!selectedAnimal) {
+                setError("Bir hayvan motifi seç");
+                return;
+            }
             setLoading(true);
             try {
                 await axios.put(`${API_URL}/auth/update-profile`, {
@@ -56,6 +88,10 @@ export default function Onboarding({
                     intent: "kahve-buddy",
                     sexual_orientation: orientation || null,
                 }, { params: { phone } });
+
+                await axios.put(`${API_URL}/auth/update-animal`, null, {
+                    params: { phone, animal: selectedAnimal },
+                });
 
                 await AsyncStorage.setItem("profileCompleted", "true");
                 await AsyncStorage.setItem("nickname", nickname.trim());
@@ -72,8 +108,10 @@ export default function Onboarding({
     };
 
     const handleSkip = () => {
-        setOrientation("");
-        setStep(step + 1);
+        if (step === 2) {
+            setOrientation("");
+            setStep(step + 1);
+        }
     };
 
     return (
@@ -161,7 +199,7 @@ export default function Onboarding({
                     }]}>
                         Opsiyonel
                     </Text>
-                    <ScrollView style={styles.orientationList} showsVerticalScrollIndicator={false}>
+                    <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
                         {ORIENTATIONS.map((o) => (
                             <TouchableOpacity
                                 key={o}
@@ -184,12 +222,49 @@ export default function Onboarding({
                                     { borderColor: theme.textTertiary },
                                     orientation === o && { backgroundColor: theme.primary, borderColor: theme.primary },
                                 ]}>
-                                    {orientation === o && (
-                                        <Text style={styles.checkmark}>✓</Text>
-                                    )}
+                                    {orientation === o && <Text style={styles.checkmark}>✓</Text>}
                                 </View>
                             </TouchableOpacity>
                         ))}
+                    </ScrollView>
+                </View>
+            )}
+
+            {/* Adım 3 - Hayvan Motifi */}
+            {step === 3 && (
+                <View style={styles.stepContainer}>
+                    <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                        Seni temsil edecek hayvanı seç 🐾
+                    </Text>
+                    <Text style={[styles.animalNote, { color: theme.textTertiary }]}>
+                        Eşleşme nickların bu hayvana göre oluşturulur. Ayda 1 kez değiştirebilirsin.
+                    </Text>
+                    <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
+                        <View style={styles.animalGrid}>
+                            {ANIMALS.map((animal) => (
+                                <TouchableOpacity
+                                    key={animal.name}
+                                    style={[
+                                        styles.animalCard,
+                                        { backgroundColor: theme.card, borderColor: theme.cardBorder },
+                                        selectedAnimal === animal.name && {
+                                            borderColor: theme.primary,
+                                            backgroundColor: theme.primaryLight,
+                                        },
+                                    ]}
+                                    onPress={() => setSelectedAnimal(animal.name)}
+                                >
+                                    <Text style={styles.animalEmoji}>{animal.emoji}</Text>
+                                    <Text style={[
+                                        styles.animalName,
+                                        { color: theme.textSecondary },
+                                        selectedAnimal === animal.name && { color: theme.primary, fontWeight: "bold" },
+                                    ]}>
+                                        {animal.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                     </ScrollView>
                 </View>
             )}
@@ -212,147 +287,68 @@ export default function Onboarding({
 
                 {step === 2 && (
                     <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-                        <Text style={[styles.skipText, { color: theme.textSecondary }]}>
-                            Atla →
-                        </Text>
+                        <Text style={[styles.skipText, { color: theme.textSecondary }]}>Atla →</Text>
                     </TouchableOpacity>
                 )}
 
                 {step > 0 && (
                     <TouchableOpacity onPress={() => setStep(step - 1)}>
-                        <Text style={[styles.backText, { color: theme.textTertiary }]}>
-                            ← Geri
-                        </Text>
+                        <Text style={[styles.backText, { color: theme.textTertiary }]}>← Geri</Text>
                     </TouchableOpacity>
                 )}
             </View>
+
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 24,
-        justifyContent: "center",
-    },
-    progressContainer: {
-        marginBottom: 30,
-    },
-    progressBg: {
-        height: 6,
-        borderRadius: 3,
-        marginBottom: 6,
-    },
-    progressFill: {
-        height: 6,
-        backgroundColor: "#6C63FF",
-        borderRadius: 3,
-    },
-    progressText: {
-        fontSize: 12,
-        textAlign: "right",
-    },
-    stepLabel: {
-        fontSize: 13,
-        marginBottom: 6,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: "bold",
-        marginBottom: 20,
-    },
-    subtitle: {
-        fontSize: 15,
-        marginBottom: 10,
-    },
+    container: { flex: 1, padding: 24, justifyContent: "center" },
+    progressContainer: { marginBottom: 30 },
+    progressBg: { height: 6, borderRadius: 3, marginBottom: 6 },
+    progressFill: { height: 6, backgroundColor: "#6C63FF", borderRadius: 3 },
+    progressText: { fontSize: 12, textAlign: "right" },
+    stepLabel: { fontSize: 13, marginBottom: 6 },
+    title: { fontSize: 28, fontWeight: "bold", marginBottom: 20 },
+    subtitle: { fontSize: 15, marginBottom: 10 },
+    animalNote: { fontSize: 12, marginBottom: 12, lineHeight: 18 },
     optionalBadge: {
-        fontSize: 12,
-        marginBottom: 15,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 20,
-        alignSelf: "flex-start",
-        overflow: "hidden",
+        fontSize: 12, marginBottom: 15, paddingHorizontal: 10,
+        paddingVertical: 4, borderRadius: 20, alignSelf: "flex-start", overflow: "hidden",
     },
-    ageInfo: {
-        fontSize: 14,
-        marginBottom: 15,
-        fontWeight: "bold",
-    },
-    stepContainer: {
-        marginBottom: 20,
-    },
-    error: {
-        color: "#FF4444",
-        fontSize: 13,
-        marginBottom: 15,
-    },
-    input: {
-        padding: 15,
-        borderRadius: 12,
-        fontSize: 16,
-        borderWidth: 1,
-    },
-    optionButton: {
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 10,
-        borderWidth: 2,
-    },
-    optionText: {
-        fontSize: 16,
-    },
-    orientationList: {
-        maxHeight: 300,
-    },
+    ageInfo: { fontSize: 14, marginBottom: 15, fontWeight: "bold" },
+    stepContainer: { marginBottom: 20, flex: 1 },
+    error: { color: "#FF4444", fontSize: 13, marginBottom: 15 },
+    input: { padding: 15, borderRadius: 12, fontSize: 16, borderWidth: 1 },
+    optionButton: { padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 2 },
+    optionText: { fontSize: 16 },
+    scrollList: { maxHeight: 320 },
     orientationButton: {
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 8,
-        borderWidth: 2,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
+        padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 2,
+        flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     },
-    orientationText: {
-        fontSize: 16,
-    },
+    orientationText: { fontSize: 16 },
     checkbox: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        borderWidth: 2,
-        justifyContent: "center",
-        alignItems: "center",
+        width: 22, height: 22, borderRadius: 11,
+        borderWidth: 2, justifyContent: "center", alignItems: "center",
     },
-    checkmark: {
-        color: "white",
-        fontSize: 12,
-        fontWeight: "bold",
+    checkmark: { color: "white", fontSize: 12, fontWeight: "bold" },
+
+    // Hayvan grid
+    animalGrid: {
+        flexDirection: "row", flexWrap: "wrap", gap: 10,
     },
-    buttonContainer: {
-        gap: 10,
+    animalCard: {
+        width: "30%", borderRadius: 14, padding: 12,
+        alignItems: "center", borderWidth: 2,
     },
-    button: {
-        padding: 16,
-        borderRadius: 12,
-        alignItems: "center",
-    },
-    buttonText: {
-        color: "white",
-        fontSize: 16,
-        fontWeight: "bold",
-    },
-    skipButton: {
-        alignItems: "center",
-        padding: 10,
-    },
-    skipText: {
-        fontSize: 15,
-    },
-    backText: {
-        fontSize: 14,
-        textAlign: "center",
-    },
+    animalEmoji: { fontSize: 28, marginBottom: 4 },
+    animalName: { fontSize: 11, textAlign: "center" },
+
+    buttonContainer: { gap: 10, marginTop: 10 },
+    button: { padding: 16, borderRadius: 12, alignItems: "center" },
+    buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
+    skipButton: { alignItems: "center", padding: 10 },
+    skipText: { fontSize: 15 },
+    backText: { fontSize: 14, textAlign: "center" },
 });
