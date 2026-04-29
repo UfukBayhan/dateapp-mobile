@@ -370,7 +370,8 @@ export default function Chat({ phone, roomId }: { phone: string; roomId: string 
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: keyboardHeight.value }],
+    // transform: [{ translateY: keyboardHeight.value }],
+    marginBottom: -keyboardHeight.value,
   }));
 
   const [messages, setMessages] = useState<Message[]>([]);

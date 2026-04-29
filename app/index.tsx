@@ -2,8 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Platform, StyleSheet,
-  Text, TextInput, TouchableOpacity, View
+  ActivityIndicator, StyleSheet, Text, View
 } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { useTheme } from "../utils/theme";
@@ -14,19 +13,6 @@ import WelcomeBack from "./welcome-back";
 
 const API_URL = "https://dateapp-backend.onrender.com";
 
-const formatDate = (date: Date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-// DateTimePicker sadece native'de import et
-let DateTimePicker: any = null;
-if (Platform.OS !== "web") {
-  DateTimePicker = require("@react-native-community/datetimepicker").default;
-}
-
 export default function Index() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -35,10 +21,7 @@ export default function Index() {
   const [userAge, setUserAge] = useState(0);
   const [profileCompleted, setProfileCompleted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [needsRegister, setNeedsRegister] = useState(false);
-  const [birthDate, setBirthDate] = useState(new Date(2000, 0, 1));
-  const [showPicker, setShowPicker] = useState(false);
-  const [birthError, setBirthError] = useState("");
+  const [isNewUser, setIsNewUser] = useState(false);
   const [nickname, setNickname] = useState("");
   const [showWelcomeBack, setShowWelcomeBack] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
@@ -92,7 +75,7 @@ export default function Index() {
     disconnectSocket();
     await AsyncStorage.multiRemove(["token", "phoneVerified", "profileCompleted", "nickname"]);
     setLoggedIn(false); setPhoneVerified(false); setVerifiedPhone("");
-    setProfileCompleted(false); setNeedsRegister(false);
+    setProfileCompleted(false); setIsNewUser(false);
     setNickname(""); setShowWelcomeBack(false);
   };
 
@@ -120,40 +103,10 @@ export default function Index() {
         }
       }
     } catch (error: any) {
-      if (error?.response?.status === 404) setNeedsRegister(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegister = async () => {
-    setBirthError("");
-    const today = new Date();
-    const age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    const realAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())
-      ? age - 1 : age;
-
-    if (realAge < 18) {
-      setBirthError("18 yaşından küçükler kayıt olamaz");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await axios.post(`${API_URL}/auth/register`, {
-        phone: verifiedPhone,
-        birth_date: formatDate(birthDate),
-      });
-      await AsyncStorage.setItem("token", res.data.access_token);
-      await AsyncStorage.setItem("phoneVerified", verifiedPhone);
-      setLoggedIn(true);
-      setNeedsRegister(false);
-      connectSocket(verifiedPhone);
-      setUserAge(realAge);
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail;
-      setBirthError(typeof msg === "string" ? msg : "Bir hata oluştu");
+      if (error?.response?.status === 404) {
+        // Yeni kullanıcı → onboarding'e gönder
+        setIsNewUser(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -163,6 +116,12 @@ export default function Index() {
     setProfileCompleted(true);
     setNickname(completedNickname);
     AsyncStorage.setItem("nickname", completedNickname);
+  };
+
+  const handleRegisterComplete = (phone: string, age: number) => {
+    setLoggedIn(true);
+    setUserAge(age);
+    connectSocket(phone);
   };
 
   // ── Loading ──
@@ -176,101 +135,8 @@ export default function Index() {
   }
 
   // ── Telefon doğrulama ──
-  if (!phoneVerified && !needsRegister) {
+  if (!phoneVerified && !isNewUser) {
     return <Phone onVerified={handlePhoneVerified} />;
-  }
-
-  // ── Doğum tarihi ──
-  if (needsRegister) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={styles.logo}>🌴</Text>
-        <Text style={[styles.appName, { color: theme.primary }]}>HURMA</Text>
-        <Text style={[styles.title, { color: theme.text }]}>🎂 Doğum Tarihin</Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Yaşını doğrulamak için doğum tarihini seç
-        </Text>
-
-        {birthError ? <Text style={styles.error}>{birthError}</Text> : null}
-
-        {/* Web → text input */}
-        {Platform.OS === "web" && (
-          <TextInput
-            style={[styles.input, {
-              backgroundColor: theme.inputBackground,
-              borderColor: theme.inputBorder,
-              color: theme.text,
-            }]}
-            placeholder="1995-01-01"
-            placeholderTextColor={theme.textTertiary}
-            value={formatDate(birthDate)}
-            onChangeText={(text) => {
-              const parsed = new Date(text);
-              if (!isNaN(parsed.getTime())) setBirthDate(parsed);
-            }}
-            keyboardType="numeric"
-            maxLength={10}
-          />
-        )}
-
-        {/* Android → buton + modal picker */}
-        {Platform.OS === "android" && (
-          <>
-            <TouchableOpacity
-              style={[styles.dateButton, {
-                backgroundColor: theme.inputBackground,
-                borderColor: theme.inputBorder,
-              }]}
-              onPress={() => setShowPicker(true)}
-            >
-              <Text style={[styles.dateButtonText, { color: theme.text }]}>
-                📅 {formatDate(birthDate)}
-              </Text>
-            </TouchableOpacity>
-            {showPicker && DateTimePicker && (
-              <DateTimePicker
-                value={birthDate}
-                mode="date"
-                display="spinner"
-                maximumDate={new Date(new Date().getFullYear() - 18, 11, 31)}
-                minimumDate={new Date(1950, 0, 1)}
-                onChange={(_: any, selectedDate?: Date) => {
-                  setShowPicker(false);
-                  if (selectedDate) setBirthDate(selectedDate);
-                }}
-              />
-            )}
-          </>
-        )}
-
-        {/* iOS → inline spinner */}
-        {Platform.OS === "ios" && DateTimePicker && (
-          <DateTimePicker
-            value={birthDate}
-            mode="date"
-            display="spinner"
-            maximumDate={new Date(new Date().getFullYear() - 18, 11, 31)}
-            minimumDate={new Date(1950, 0, 1)}
-            onChange={(_: any, selectedDate?: Date) => {
-              if (selectedDate) setBirthDate(selectedDate);
-            }}
-            style={{ width: "100%", marginBottom: 10 }}
-          />
-        )}
-
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.primary, marginTop: 10 }]}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.buttonText}>Devam Et →</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
   }
 
   // ── Hoş geldin ──
@@ -278,10 +144,16 @@ export default function Index() {
     return <WelcomeBack nickname={nickname} onContinue={() => setShowWelcomeBack(false)} />;
   }
 
-  // ── Onboarding ──
-  if (loggedIn && !profileCompleted) {
+  // ── Onboarding (yeni kullanıcı veya profil tamamlanmamış) ──
+  if (isNewUser || (loggedIn && !profileCompleted)) {
     return (
-      <Onboarding phone={verifiedPhone} age={userAge} onComplete={handleProfileComplete} />
+      <Onboarding
+        phone={verifiedPhone}
+        age={userAge}
+        isNewUser={isNewUser}
+        onRegisterComplete={handleRegisterComplete}
+        onComplete={handleProfileComplete}
+      />
     );
   }
 
@@ -307,19 +179,4 @@ export default function Index() {
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   logo: { fontSize: 60, marginBottom: 8 },
-  appName: { fontSize: 28, fontWeight: "bold", letterSpacing: 4, marginBottom: 40 },
-  title: { fontSize: 26, fontWeight: "bold", marginBottom: 10 },
-  subtitle: { fontSize: 15, textAlign: "center", marginBottom: 25 },
-  error: { color: "#FF4444", fontSize: 13, marginBottom: 15, textAlign: "center" },
-  input: {
-    width: "100%", padding: 15, borderRadius: 12,
-    marginBottom: 15, fontSize: 16, borderWidth: 1, textAlign: "center",
-  },
-  dateButton: {
-    width: "100%", padding: 15, borderRadius: 12,
-    marginBottom: 15, borderWidth: 1, alignItems: "center",
-  },
-  dateButtonText: { fontSize: 16, fontWeight: "600" },
-  button: { width: "100%", padding: 15, borderRadius: 12, alignItems: "center" },
-  buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
 });
