@@ -114,8 +114,10 @@ export default function Index() {
 
   const handleProfileComplete = (completedNickname: string) => {
     setProfileCompleted(true);
+    setIsNewUser(false);  // ← BU EKSIKTI
     setNickname(completedNickname);
     AsyncStorage.setItem("nickname", completedNickname);
+    AsyncStorage.setItem("profileCompleted", "true");  // ← BU DA EKSIKTI
   };
 
   const handleRegisterComplete = (phone: string, age: number) => {

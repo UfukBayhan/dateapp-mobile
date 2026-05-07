@@ -177,7 +177,15 @@ export default function Onboarding({
                 await AsyncStorage.setItem("nickname", nickname.trim());
                 onComplete(nickname.trim());
             } catch (e: any) {
-                setError("Bir hata oluştu, tekrar dene");
+                console.log("HATA DETAY:", JSON.stringify(e?.response?.data));
+                console.log("HATA STATUS:", e?.response?.status);
+
+                const detail = e?.response?.data?.detail;
+                if (typeof detail === "string") {
+                    setError(detail);  // "30 gün sonra değiştirebilirsin" gibi backend mesajını göster
+                } else {
+                    setError("Bir hata oluştu, tekrar dene");
+                }
             } finally {
                 setLoading(false);
             }
