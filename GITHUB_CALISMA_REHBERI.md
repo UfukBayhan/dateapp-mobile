@@ -51,23 +51,19 @@ ancak ürün kararları ve insan onayı Murat ile Ufuk'a aittir.
 | Codex | Kodu hazırlar/inceler, testleri çalıştırır ve her işlemi öğretici notla açıklar. |
 | GitHub Actions | Backend testleri ile mobil lint/TypeScript kontrollerini otomatik çalıştırır. |
 
-## Şu an açık işler
+## Şu anki GitHub durumu
 
-1. **Mobil PR #1:** Uygulamanın çalışma zamanı doğrulama düzeltmeleri.
-   - Mobil değişikliklerin ilk katmanıdır ve önce incelenmelidir.
-   - PR sahibi: Murat
-   - İnceleyen: Ufuk
-2. **Mobil PR #2:** Merkezi API adresi altyapısı.
-   - Mobil PR #1 üzerine kuruludur ve ikinci sırada birleştirilmelidir.
-   - PR sahibi: Murat
-   - İnceleyen: Ufuk
-3. **Mobil PR #3:** Güvenli giriş/kayıt ve token saklama.
-   - Mobil PR #2 üzerine kuruludur ve üçüncü sırada birleştirilmelidir.
-   - PR sahibi: Murat
-   - İnceleyen: Ufuk
-4. **Backend PR #4:** Güvenli telefon/parola, JWT ve Socket.IO güvenliği.
-   - PR sahibi: Murat
-   - İnceleyen: Ufuk
+29 Temmuz 2026 tarihinde giriş yapılmış GitHub oturumundan doğrulanan durum:
+
+- Mobil PR #1, #2 ve #3 birleştirilmiştir.
+- Mobil PR #4, parolasız SMS doğrulama ve klavye düzeltmeleri için açıktır.
+- Backend PR #1–#5 açıktır.
+- Backend PR #4 parola/JWT güvenliği, Backend PR #5 ise parolasız SMS kodu
+  akışıyla ilgilidir. Aynı kimlik doğrulama alanını etkiledikleri için hangisinin
+  esas alınacağı ve merge sırası Murat tarafından açıkça kararlaştırılmadan bu
+  PR'lar birleştirilmez.
+- Docker hazırlığı Backend PR #3 olarak açıktır fakat canlı sistemde şu an
+  kullanılmamaktadır.
 
 ## PR durum tablosu
 
@@ -77,10 +73,15 @@ edilmeden tamamlanmış kabul edilmez.
 
 | PR | Konu | Sahibi | Reviewer | Hedef | Checks | İnsan onayı | Durum / sonraki adım |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [Mobil PR #1](https://github.com/UfukBayhan/dateapp-mobile/pull/1) | Çalışma zamanı doğrulamaları | Murat | Ufuk | `main` | Doğrulanacak | Bekleniyor | Önce incelenecek; yeşil kontroller ve onaydan sonra merge planlanacak. |
-| [Mobil PR #2](https://github.com/UfukBayhan/dateapp-mobile/pull/2) | Merkezi API adresi | Murat | Ufuk | PR #1'in dalı; PR #1 sonrası `main` yapılacak | Doğrulanacak | Bekleniyor | Hedef değişince diff ve kontroller yeniden incelenecek. |
-| [Mobil PR #3](https://github.com/UfukBayhan/dateapp-mobile/pull/3) | Güvenli giriş, kayıt ve token | Murat | Ufuk | PR #2'nin dalı; PR #2 sonrası `main` yapılacak | Doğrulanacak | Bekleniyor | Hedef değişince diff ve kontroller yeniden incelenecek. |
-| [Backend PR #4](https://github.com/MM-HAZNECI/dateapp-backend/pull/4) | Güvenli auth ve Socket.IO | Murat | Ufuk | `main` | Doğrulanacak | Bekleniyor | Staging mobil/backend testi tamamlanmadan production merge/deploy yapılmayacak. |
+| [Mobil PR #1](https://github.com/MM-HAZNECI/dateapp-mobile/pull/1) | Mobil çalışma kontrolleri ve iOS build ayarı | Murat | Ufuk | `main` | Tamamlandı | Verildi | **Merge edildi.** |
+| [Mobil PR #2](https://github.com/MM-HAZNECI/dateapp-mobile/pull/2) | Merkezi API adresi | Murat | Ufuk | `main` | Tamamlandı | Verildi | **Merge edildi.** |
+| [Mobil PR #3](https://github.com/MM-HAZNECI/dateapp-mobile/pull/3) | Güvenli telefon ve parola girişi | Murat | Ufuk | `main` | Tamamlandı | Verildi | **Merge edildi.** |
+| [Mobil PR #4](https://github.com/MM-HAZNECI/dateapp-mobile/pull/4) | Parolasız SMS doğrulama ve klavye düzeltmesi | Murat | Ufuk | Doğrulanacak | Doğrulanacak | Bekleniyor | Açık; backend auth kararıyla birlikte incelenecek. |
+| [Backend PR #1](https://github.com/MM-HAZNECI/dateapp-backend/pull/1) | Sohbet turu bitiş olayını tekilleştirme | Murat | Ufuk | Doğrulanacak | Doğrulanacak | Bekleniyor | Açık; bağımsız düzeltme olarak incelenecek. |
+| [Backend PR #2](https://github.com/MM-HAZNECI/dateapp-backend/pull/2) | Sürpriz eşleşme düzeltmesi | Murat | Ufuk | Doğrulanacak | Doğrulanacak | Bekleniyor | Açık; bağımsız düzeltme olarak incelenecek. |
+| [Backend PR #3](https://github.com/MM-HAZNECI/dateapp-backend/pull/3) | Docker geliştirme ortamı | Murat | Ufuk | Doğrulanacak | Doğrulanacak | Bekleniyor | Açık; production ihtiyacı olmadığı için önceliği ayrıca kararlaştırılacak. |
+| [Backend PR #4](https://github.com/MM-HAZNECI/dateapp-backend/pull/4) | Parola, JWT ve Socket.IO güvenliği | Murat | Ufuk | Doğrulanacak | Doğrulanacak | Bekleniyor | Açık; Backend PR #5 ile auth stratejisi netleştirilecek. |
+| [Backend PR #5](https://github.com/MM-HAZNECI/dateapp-backend/pull/5) | Güvenli SMS kodu ile parolasız giriş | Murat | Belirlenecek | Doğrulanacak | Doğrulanacak | Bekleniyor | Açık; Mobil PR #4 ile birlikte staging'de test edilecek. |
 
 Kullanılabilecek kısa durum ifadeleri:
 
@@ -116,9 +117,10 @@ kontrollü sırayla yapılır.
 5. Mobil ve backend sözleşmesi birlikte test edilmeden production deployment
    yapılmaz.
 
-## Zincirleme mobil PR'lar için özel kural
+## Zincirleme mobil PR'lardan öğrenilen kural
 
-Mobil PR #1, #2 ve #3 birbirinin üzerine kurulduğu için sırayla ilerlenir:
+Mobil PR #1, #2 ve #3 sırayla birleştirilmiştir. Gelecekte birbirinin üzerine
+kurulan PR'larda şu sıra izlenir:
 
 1. PR #1 incelenir ve birleştirilir.
 2. PR #2'nin hedefi `main` yapılır veya dal güncel `main` üzerine taşınır.
@@ -136,8 +138,9 @@ işlem için tahminle Git komutu çalıştırmamalıdır.
 Yeni mobil kimlik doğrulaması ile yeni backend birbirine bağlıdır. Biri eski,
 diğeri yeni sürümken giriş akışı bozulabilir. Bu nedenle önerilen sıra şöyledir:
 
-1. Mobil PR #1 → PR #2 → PR #3 kod incelemeleri ve merge işlemleri tamamlanır.
-2. Backend PR #4 ayrı Render staging servisine kurulur.
+1. Hangi auth yaklaşımının esas olduğu kararlaştırılır: parola/JWT (Backend PR
+   #4) veya parolasız SMS (Backend PR #5 + Mobil PR #4).
+2. Seçilen backend dalı ayrı Render staging servisine kurulur.
 3. Staging backend ayrı Neon test veritabanı/branch kullanır.
 4. Mobil preview build staging API adresiyle hazırlanır.
 5. Gerçek cihaz + emulator üzerinde iki kullanıcılı uçtan uca test yapılır.
